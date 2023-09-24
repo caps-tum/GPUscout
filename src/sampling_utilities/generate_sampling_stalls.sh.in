@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# file_name=thread_divergence_more_conditions -> is obtained from the source calling script automatically
+# args="64 2 2 ../../temp_64 ../../power_64 ../../output_64.txt"
+# args="../../fvcorr.domn.097K"
+# REMEMBER: MODIFY ARGUMENTS PATH TO EXECUTABLE AS NEEDED
+
+echo "Generating the libpc_sampling_continuous.so file . . ."
+cd ${gpuscout_dir}/sampling_utilities/sampling_continuous/
+echo "curDir = ${PWD}"
+make all
+export LD_LIBRARY_PATH=$PWD:@CUDAToolkit_LIBRARY_ROOT@/extras/CUPTI/lib64/:$LD_LIBRARY_PATH
+chmod u+x ./libpc_sampling_continuous.pl
+./libpc_sampling_continuous.pl --collection-mode 1 --sampling-period 7 --file-name pcsampling_$file_name.dat --verbose --app "./../../executable/$file_name $args"
+
+
+echo "Generating pc_sampling utility . . ."
+cd ${gpuscout_dir}/sampling_utilities/sampling_utility/
+echo "curDir2 = ${PWD}"
+make all
+echo "LD_LIBRARY_PATH = ${LD_LIBRARY_PATH}"
+./pc_sampling_utility --file-name ../sampling_continuous/1_pcsampling_$file_name.dat > pcsampling_$file_name.txt

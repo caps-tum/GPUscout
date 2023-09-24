@@ -2,6 +2,8 @@
 
 A tool for discovering data movement-related bottlenecks on NVidia GPUs.
 
+!!! GPUscout is in active development, and is not yet in a production-ready stability !!!
+
 ## Description
 
 //TODO

@@ -2,3 +2,6 @@
 src/sampling_utilities/sampling_continuous/Makefile
 src/sampling_utilities/sampling_unility/Makefile
 src/sampling_utilities/generate_sampling_stalls.sh
+build/*
+inst-dir/*
+install/*

@@ -7,16 +7,26 @@
 
 echo "Generating the libpc_sampling_continuous.so file . . ."
 cd ${gpuscout_dir}/sampling_utilities/sampling_continuous/
-echo "curDir = ${PWD}"
-make all
+if [ "$verbose" = true ]; then
+    make all
+else
+    make all --silent
+fi
 export LD_LIBRARY_PATH=$PWD:@CUDAToolkit_LIBRARY_ROOT@/extras/CUPTI/lib64/:$LD_LIBRARY_PATH
 chmod u+x ./libpc_sampling_continuous.pl
-./libpc_sampling_continuous.pl --collection-mode 1 --sampling-period 7 --file-name pcsampling_$file_name.dat --verbose --app "./../../executable/$file_name $args"
+if [ "$verbose" = true ]; then
+    ./libpc_sampling_continuous.pl --collection-mode 1 --sampling-period 7 --file-name pcsampling_${run_prefix}.dat --verbose --app "${executable} ${args}"
+else
+    ./libpc_sampling_continuous.pl --collection-mode 1 --sampling-period 7 --file-name pcsampling_${run_prefix}.dat --app "${executable} ${args}"
+fi
+
 
 
 echo "Generating pc_sampling utility . . ."
 cd ${gpuscout_dir}/sampling_utilities/sampling_utility/
-echo "curDir2 = ${PWD}"
-make all
-echo "LD_LIBRARY_PATH = ${LD_LIBRARY_PATH}"
-./pc_sampling_utility --file-name ../sampling_continuous/1_pcsampling_$file_name.dat > pcsampling_$file_name.txt
+if [ "$verbose" = true ]; then
+    make all
+else
+    make all --silent
+fi
+./pc_sampling_utility --file-name ../sampling_continuous/1_pcsampling_${run_prefix}.dat > pcsampling_${run_prefix}.txt

@@ -14,8 +14,8 @@ find_package(CUDAToolkit 11.8 REQUIRED)
 include_directories(CUDA::cupti)
 #link_libraries(CUDA::toolkit)
 
-install(PROGRAMS GPUscout.sh DESTINATION . RENAME GPUscout.sh)
-install(PROGRAMS measurements.sh DESTINATION analysis)
+install(PROGRAMS GPUscout.sh DESTINATION .)
+#install(PROGRAMS measurements.sh DESTINATION analysis)
 
 #file(COPY ${CUDAToolkit_LIBRARY_ROOT}/extras/CUPTI/samples/pc_sampling_utility DESTINATION "${CMAKE_BINARY_DIR}")
 #

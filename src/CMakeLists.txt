@@ -22,6 +22,7 @@ install(TARGETS merge_analysis_register_spilling
                 merge_analysis_datatype_conversion
                 merge_analysis_deadlock_detection
         DESTINATION analysis)
+install(PROGRAMS measurements.sh DESTINATION analysis)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/sampling_utilities/sampling_continuous/Makefile.in ${CMAKE_CURRENT_SOURCE_DIR}/sampling_utilities/sampling_continuous/Makefile @ONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/sampling_utilities/sampling_utility/Makefile.in ${CMAKE_CURRENT_SOURCE_DIR}/sampling_utilities/sampling_utility/Makefile @ONLY)

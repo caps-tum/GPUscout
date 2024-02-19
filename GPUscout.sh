@@ -1,32 +1,114 @@
 #!/bin/bash
+
+# Define the usage function
+usage() {
+    echo "Usage: $0 [-h] [--dry-run] [--verbose] -e executable [-c directory] [--args]"
+    echo "  -h | --help : Display this help."
+    echo "  --dry_run : performs only dry_run. A --dry_run will only analyse the SASS instructions. --dry_run will neither read warp stalls nor Nsight metrics "
+    echo "  -v | --verbose : print more verbose output. "
+    echo "  -e | --executable : Path to the executable (compiled with nvcc)."
+    echo "  -c | --cubin : Path to the cubin file (compiled with nvcc, with -cubin). If left empty, the same path as executable and the name cubin-<executable> will be assumed."
+    echo "  -a | --args : Arguments for running the binary. e.g. --args=\"64 2 2 temp_64 power_64 output_64.txt\""
+    exit 1
+}
+
+# Parse command-line options
+options=$(getopt -o hve:c:a: -l help,dry_run,verbose,executable:,cubin:,args: -- "$@")
+
+if [ $? -ne 0 ]; then
+    echo "Error: Invalid option."
+    usage
+fi
+
+eval set -- "$options"
+
+dry_run=false
+verbose=false
+executable=""
+cubin=""
+args=""
+while true; do
+    case "$1" in
+        -h | --help)
+            usage
+            ;;
+        -e | --executable)
+            executable="$2"
+            shift 2
+            ;;
+        -c | --cubin)
+            cubin="$2"
+            shift 2
+            ;;
+        -a | --args)
+            args="$2"
+            shift 2
+            ;;
+        --dry_run)
+            dry_run=true
+            shift
+            ;;
+        -v | --verbose)
+            verbose=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo "Error: Internal error during parsing."
+            exit 1
+            ;;
+    esac
+done
+
+#check the params
+if [ -z "$executable" ]; then
+    echo "No executable specified (-e ..)"
+    usage
+fi
+executable_filename=$(basename "$executable")
+executable_dir="$( cd "$( dirname "$executable" )" && pwd )"
+executable="$executable_dir/$executable_filename"
+run_prefix=$executable_filename
+if [ ! -f "$executable" ]; then
+    echo "Executable not found at: $executable"
+    exit 1
+fi
+
+if [ -z "$cubin" ]; then
+    cubin_filename="cubin-$executable_filename"
+    cubin_dir=$executable_dir
+else
+    cubin_filename=$(basename "$cubin")
+    cubin_dir="$( cd "$( dirname "$cubin" )" && pwd )"
+    
+fi
+cubin="$cubin_dir/$cubin_filename"
+if [ ! -f "$cubin" ]; then
+    echo "Cubin file not found at: $cubin"
+    exit 1
+fi
+
 gpuscout_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 gpuscout_tmp_dir="${gpuscout_dir}/tmp-gpuscout"
 # Save metrics in a seperate directory
+echo "======================================================================================================"
+echo "==== Creating GPUscout TMP directory for storing metrics: ${gpuscout_tmp_dir}"
 mkdir -p ${gpuscout_tmp_dir}
-#@(#) This is the setup script that sets up HPCToolkit to generate the gpu binaries, disassembles them with nvdisasm, reads warp stalls and executes the measurement script
-
 
 # Note: when you compile the code with nvcc, create 2 executables
 # 1. without -cubin flag: <executable name>
 # 2. with -cubin flag: prefix the name of the executable with cubin-<executable name>
 
-echo "Taking name of the executable file"
-# read file_name
-file_name=cuda_test
+echo "==== Executable: $executable"
+echo "==== Cubin:      $cubin"
+echo "==== Arguments for the executable file: \"$args\""
+echo "==== Dry-run: $dry_run"
+echo "==== Verbose: $verbose"
+echo "======================================================================================================"
 
-echo "Taking arguments for the executable file"
-# args="64 2 2 temp_64 power_64 output_64.txt"
-# args="128 0.1"
-# args=""
-
-echo "Taking run type for the tool"
-# Pass --dry_run as command-line argument to the script
-# A --dry_run will only analyse the SASS instructions
-# --dry_run will neither read warp stalls nor Nsight metrics 
-runtype=$1
-if [[ $runtype = "--dry_run" ]]; then
-echo "Run type: dry_run selected . . . . . . . . . . . . . . . . . . . . "
-fi
 
 echo "Clearing previous files . . . . . . . . . . . . . . . . . . . . "
 # DO NOT REMOVE sampling_utilities directory !!!!!!!
@@ -58,10 +140,9 @@ rm merge_analysis_use_texture 2>/dev/null
 rm merge_analysis_use_shared 2>/dev/null
 rm merge_analysis_datatype_conversion 2>/dev/null
 
-echo "======================================================================================================"
 echo "Setting up profiling . . . . . . . . . . . . . . . "
 # Remove and Create build directory
-rm -rf $PWD/build/ && mkdir -p $PWD/build/
+#rm -rf $PWD/build/ && mkdir -p $PWD/build/
 
 # ------------------------ WITH HPCTOOLKIT ------------------------
 # # Save your executable in a directory named "executable"
@@ -103,24 +184,25 @@ rm -rf $PWD/build/ && mkdir -p $PWD/build/
 # ------------------------ WITHOUT HPCTOOLKIT ------------------------
 # Still using the name same as before (with hpctoolkit), just for ease
 # Hence we are running the same commands below twice, once t generate the name with -hpctoolkit- and once to generate the name with -executable-
+
 cd ${gpuscout_dir}
-echo "1gpuscout_dir = ${gpuscout_dir}"
 echo -e "Generating binaries . . . . . . . . . . . . . . . . . . . ."
-nvdisasm -g -c ./../executable/cubin-${file_name} > ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${file_name}-sass.txt
-nvdisasm -g -c ./../executable/cubin-${file_name} > ${gpuscout_tmp_dir}/nvdisasm-executable-${file_name}-sass.txt
-cuobjdump -ptx ./../executable/${file_name} > ${gpuscout_tmp_dir}/nvdisasm-executable-${file_name}-ptx.txt
-nvdisasm -g -c -lrm=count ./../executable/cubin-${file_name} > ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${file_name}-sass.txt
-nvdisasm -g -c -lrm=count ./../executable/cubin-${file_name} > ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${file_name}-sass.txt
+nvdisasm -g -c ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${run_prefix}-sass.txt #TODO this line necessary?
+nvdisasm -g -c ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-sass.txt
+cuobjdump -ptx ${executable} > ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-ptx.txt
+nvdisasm -g -c -lrm=count ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${run_prefix}-sass.txt #TODO this line necessary?
+nvdisasm -g -c -lrm=count ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${run_prefix}-sass.txt
+
 
 # Run the generate_sampling_stalls script inside the sampling_utilities directory
-if [[ $runtype != "--dry_run" ]]; then
-echo "Getting warp stall reasons . . . . . . . . . . . . . . . "
-source ${gpuscout_dir}/sampling_utilities/generate_sampling_stalls.sh
-cp ${gpuscout_dir}/sampling_utilities/sampling_utility/pcsampling_${file_name}.txt ${gpuscout_tmp_dir}/pcsampling_${file_name}.txt
+if [ "$dry_run" = false ]; then
+    echo "Getting warp stall reasons . . . . . . . . . . . . . . . "
+    source ${gpuscout_dir}/sampling_utilities/generate_sampling_stalls.sh
+    cp ${gpuscout_dir}/sampling_utilities/sampling_utility/pcsampling_${run_prefix}.txt ${gpuscout_tmp_dir}/pcsampling_${run_prefix}.txt
 fi
 
 # Get the measurements and analysis from the measurements script
-echo "Measurements and Analysis . . . . . . . . . . . . . . . "
+echo "Measurements and Analysis . . . . . . . . . . . . . . . (${gpuscout_dir}/analysis/measurements.sh)"
 source ${gpuscout_dir}/analysis/measurements.sh
 
 # Exit

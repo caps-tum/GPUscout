@@ -5,3 +5,4 @@ src/sampling_utilities/generate_sampling_stalls.sh
 build/*
 inst-dir/*
 install/*
+tmp-gpuscout/*

@@ -2,9 +2,10 @@
 
 # Define the usage function
 usage() {
-    echo "Usage: $0 [-h] [--dry-run] -e executable [-c directory] [--args]"
+    echo "Usage: $0 [-h] [--dry-run] [--verbose] -e executable [-c directory] [--args]"
     echo "  -h | --help : Display this help."
     echo "  --dry_run : performs only dry_run. A --dry_run will only analyse the SASS instructions. --dry_run will neither read warp stalls nor Nsight metrics "
+    echo "  -v | --verbose : print more verbose output. "
     echo "  -e | --executable : Path to the executable (compiled with nvcc)."
     echo "  -c | --cubin : Path to the cubin file (compiled with nvcc, with -cubin). If left empty, the same path as executable and the name cubin-<executable> will be assumed."
     echo "  -a | --args : Arguments for running the binary. e.g. --args=\"64 2 2 temp_64 power_64 output_64.txt\""
@@ -12,7 +13,7 @@ usage() {
 }
 
 # Parse command-line options
-options=$(getopt -o he:c:a: -l help,dry_run,executable:,cubin:,args: -- "$@")
+options=$(getopt -o hve:c:a: -l help,dry_run,verbose,executable:,cubin:,args: -- "$@")
 
 if [ $? -ne 0 ]; then
     echo "Error: Invalid option."
@@ -22,6 +23,7 @@ fi
 eval set -- "$options"
 
 dry_run=false
+verbose=false
 executable=""
 cubin=""
 args=""
@@ -44,6 +46,10 @@ while true; do
             ;;
         --dry_run)
             dry_run=true
+            shift
+            ;;
+        -v | --verbose)
+            verbose=true
             shift
             ;;
         --)
@@ -88,16 +94,20 @@ fi
 gpuscout_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 gpuscout_tmp_dir="${gpuscout_dir}/tmp-gpuscout"
 # Save metrics in a seperate directory
-echo "Creating GPUscout TMP directory for storing metrics: ${gpuscout_tmp_dir}"
+echo "======================================================================================================"
+echo "==== Creating GPUscout TMP directory for storing metrics: ${gpuscout_tmp_dir}"
 mkdir -p ${gpuscout_tmp_dir}
 
 # Note: when you compile the code with nvcc, create 2 executables
 # 1. without -cubin flag: <executable name>
 # 2. with -cubin flag: prefix the name of the executable with cubin-<executable name>
 
-echo "GPUscout will use executable: $executable and cubin: $cubin"
-echo "Arguments for the executable file: \"$args\""
-echo "Dry-run: $dry_run"
+echo "==== Executable: $executable"
+echo "==== Cubin:      $cubin"
+echo "==== Arguments for the executable file: \"$args\""
+echo "==== Dry-run: $dry_run"
+echo "==== Verbose: $verbose"
+echo "======================================================================================================"
 
 
 echo "Clearing previous files . . . . . . . . . . . . . . . . . . . . "
@@ -130,7 +140,6 @@ rm merge_analysis_use_texture 2>/dev/null
 rm merge_analysis_use_shared 2>/dev/null
 rm merge_analysis_datatype_conversion 2>/dev/null
 
-echo "======================================================================================================"
 echo "Setting up profiling . . . . . . . . . . . . . . . "
 # Remove and Create build directory
 #rm -rf $PWD/build/ && mkdir -p $PWD/build/

@@ -59,7 +59,7 @@ memory_l1_wavefronts_shared_ideal,\
 sm__sass_inst_executed_op_texture.sum,\
 l1tex__t_sectors_pipe_tex_mem_texture.sum,\
 l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate.pct,\
-smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct,\
+smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct \
 \
 \"${executable} ${args}\"
 

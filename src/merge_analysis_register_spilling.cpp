@@ -11,9 +11,13 @@
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
 #include "parser_liveregisters.hpp"
+#include "utilities/json.hpp"
 
-void print_stalls_percentage(const pc_issue_samples &index)
+using json = nlohmann::json;
+
+json print_stalls_percentage(const pc_issue_samples &index)
 {
+    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -30,7 +34,10 @@ void print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
+        stalls[k + "_perc"] = (100.0  * v / total_samples);
     }
+
+    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for register spilling to local memory
@@ -39,10 +46,16 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
 /// @param live_register_map Currently used (or live) register count denoting register pressure
-void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<local_memory_counter>> spilling_analysis_map, std::unordered_map<std::string, std::vector<track_register_instruction>> track_register_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map)
+void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<local_memory_counter>> spilling_analysis_map, std::unordered_map<std::string, std::vector<track_register_instruction>> track_register_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map, int save_as_json, std::string json_output_dir)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : spilling_analysis_map)
     {
+        json kernel_result = {
+            {"spill_detected", false},
+            {"line_numbers", {}}
+        };
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
         {
@@ -55,11 +68,19 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
         {
             // Find the register spill info from the SASS analysis
             std::cout << "WARNING   ::  Spill detected in line number " << index_sass.line_number << " of your code. Base register number " << index_sass.register_number << " spilled in " << lmem_operation_type_string[index_sass.op_type] << " operation" << std::endl;
+            kernel_result["line_numbers"][index_sass.line_number] = {
+                {"base_register", index_sass.register_number},
+                {"spill_operation", lmem_operation_type_string[index_sass.op_type]}
+            };
             for (auto last_reg : track_register_map[k_sass])
             {
                 if (index_sass.register_number == last_reg.register_number)
                 {
                     std::cout << "The previous compute instruction of register: " << index_sass.register_number << " before spilling was " << last_reg.last_instruction << " at line number " << last_reg.last_line_number << " of your code" << std::endl;
+                    kernel_result["line_numbers"][index_sass.line_number]["prev_instruction"] = {
+                        {"instruction", last_reg.last_instruction},
+                        {"line_number", last_reg.last_line_number}
+                    };
                 }
             }
 
@@ -71,13 +92,16 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
             {
                 // std::cout << reg_search_it->gen_reg << ", " << reg_search_it->pred_reg << " ," << reg_search_it->u_gen_reg << std::endl;
                 std::cout << "INFO  ::  Total current registers for the SASS instruction: " << reg_search_it->gen_reg + reg_search_it->pred_reg + reg_search_it->u_gen_reg << std::endl;
+                kernel_result["line_numbers"][index_sass.line_number]["total_register_count"] = reg_search_it->gen_reg + reg_search_it->pred_reg + reg_search_it->u_gen_reg;
                 if (reg_search_it->change_reg_from_last > 0)
                 {
                     std::cout << "Increased register pressure with " << std::abs(reg_search_it->change_reg_from_last) << " more registers compared to last SASS instruction" << std::endl;
+                    kernel_result["line_numbers"][index_sass.line_number]["register_increase"] = std::abs(reg_search_it->change_reg_from_last);
                 }
             }
 
             spilled_detected_flag = true;
+            kernel_result["line_numbers"][index_sass.line_number]["spill_detected"] = true;
 
             // Map kernel with the PC Stall map
             for (auto [k_pc, v_pc] : pc_stall_map)
@@ -88,7 +112,8 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                     {
                         if (index_sass.line_number == j.line_number) // analyze for the same line numbers in the code
                         {
-                            print_stalls_percentage(j);
+                            json stalls = print_stalls_percentage(j);
+                            kernel_result["line_numbers"][index_sass.line_number]["stalls"] = stalls;
                             break;
                         }
                     }
@@ -106,8 +131,10 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
         {
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
+                kernel_result["metrics"] = {};
                 std::cout << "INFO  ::  Data flow in memory for load operations" << std::endl;
-                load_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check local memory flow)
+                json memory_flow_metrics = load_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check local memory flow)
+                kernel_result["metrics"]["memory_flow"] = memory_flow_metrics;
 
                 // copied register_spilling_analysis from stalls_static_analysis_relation() method
                 std::cout << "For register spilling, check Long Scoreboard stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
@@ -119,8 +146,21 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 auto l2_queries_lmem_percent = estimated_l2_queries_lmem_allSM / total_l2_queries;
                 std::cout << "Percentage of total L2 queries due to LMEM: " << l2_queries_lmem_percent << " %" << std::endl;
                 std::cout << "WARNING   ::  If the above percentage is high, it means the memory traffic between the SMs and L2 cache is mostly due to LMEM (need to contain register spills)" << std::endl;
-            }
+                kernel_result["metrics"]["long_scoreboard_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active;
+                kernel_result["metrics"]["lg_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active;
+                kernel_result["metrics"]["l2_lmem_perc"] = l2_queries_lmem_percent;
+            };
         }
+
+        result[k_sass] = kernel_result;
+    }
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/register_spilling.json");
+        json_file << result.dump();
+        json_file.close();
     }
 }
 
@@ -141,7 +181,10 @@ int main(int argc, char **argv)
     std::string filename_registers = argv[6];
     std::unordered_map<std::string, std::vector<live_registers>> live_register_map = live_registers_analysis(filename_registers);
 
-    merge_analysis_register_spill(spilling_analysis_map, track_register_map, pc_stall_map, metric_map, live_register_map);
+    int save_as_json = std::strcmp(argv[6], "true") == 0;
+    std::string json_output_dir = argv[7];
+
+    merge_analysis_register_spill(spilling_analysis_map, track_register_map, pc_stall_map, metric_map, live_register_map, save_as_json, json_output_dir);
 
     return 0;
 }

@@ -1,7 +1,7 @@
 /**
  * Metric analysis based on metric data collected from Nsight Compute CLI
  * Keep the number of metrics as less as possible to minimize tool overhead
- * 
+ *
  * @author Soumya Sen
  */
 
@@ -20,6 +20,9 @@
 #include <algorithm>
 #include <memory>
 #include <cmath>
+#include "utilities/json.hpp"
+
+using json = nlohmann::json;
 
 /// @brief Metric data to collect from Nsight Compute CLI
 struct cuda_metrics
@@ -84,8 +87,8 @@ struct kernel_metrics
     cuda_metrics metrics_list;
 };
 
-void load_data_memory_flow(const kernel_metrics &);
-void atomic_data_memory_flow(const kernel_metrics &);
+json load_data_memory_flow(const kernel_metrics &);
+json atomic_data_memory_flow(const kernel_metrics &);
 void texture_data_memory_flow(const kernel_metrics &);
 void shared_data_memory_flow(const kernel_metrics &);
 void bypass_L1(const kernel_metrics &);
@@ -363,7 +366,7 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
     return metric_map;
 }
 
-void load_data_memory_flow(const kernel_metrics &all_metrics)
+json load_data_memory_flow(const kernel_metrics &all_metrics)
 {
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
 
@@ -385,9 +388,20 @@ void load_data_memory_flow(const kernel_metrics &all_metrics)
     std::cout << "L2 Cache miss % (due to L1 load data request) " << 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate << std::endl;
     auto requests_l2_dram_ld = (requests_l1_l2_global_ld + requests_l1_l2_local_ld) * (1 - (all_metrics.metrics_list.lts__t_sector_op_read_hit_rate / 100));
     std::cout << "L2 cache ---- request load data ----> DRAM " << requests_l2_dram_ld << " bytes" << std::endl;
+
+    return {
+        {"kernel_to_global_mem_instr", all_metrics.metrics_list.sm__sass_inst_executed_op_global_ld},
+        {"global_mem_to_l1_byte", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld},
+        {"l1_to_l2_byte", requests_l1_l2_global_ld},
+        {"local_mem_to_l1_byte", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_local_op_ld},
+        {"l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate},
+        {"l1_to_l2_byte", requests_l1_l2_local_ld},
+        {"l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
+        {"l2_to_dram_byte", requests_l2_dram_ld}
+    };
 }
 
-void atomic_data_memory_flow(const kernel_metrics &all_metrics)
+json atomic_data_memory_flow(const kernel_metrics &all_metrics)
 {
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
 
@@ -395,6 +409,7 @@ void atomic_data_memory_flow(const kernel_metrics &all_metrics)
     // involves shared memory, global memory, L1, L2, DRAM
     auto red_atom_requests = all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_red + all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_atom;
     std::cout << "Global memory ---- request reduction/atomic data ----> L1 cache " << 32 * red_atom_requests << " bytes" << std::endl;
+
     auto l1_red_atom_hit_rate = all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate + all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate;
     std::cout << "L1 Cache miss % (due to global memory atomic request) " << 100 - l1_red_atom_hit_rate << std::endl;
     auto requests_l1_l2_global_red = (32 * red_atom_requests) * (1 - (l1_red_atom_hit_rate / 100));
@@ -407,6 +422,15 @@ void atomic_data_memory_flow(const kernel_metrics &all_metrics)
 
     std::cout << "Incase using shared memory for atomics . . . " << std::endl;
     std::cout << "Kernel ---- request atomic data ----> Shared Memory " << all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom << " bytes" << std::endl;
+
+    return {
+        {"l1_cache_miss_perc", 100 - l1_red_atom_hit_rate},
+        {"l2_cache_miss_perc", 100 - lts_red_atom_hit_rate},
+        {"l1_to_l2__byte", requests_l1_l2_global_red},
+        {"l2_to_dram_byte", requests_l2_dram_red},
+        {"global_mem_to_l1_byte", 32 * red_atom_requests},
+        {"kernel_to_shared_mem_byte", all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom}
+    };
 }
 
 void texture_data_memory_flow(const kernel_metrics &all_metrics)

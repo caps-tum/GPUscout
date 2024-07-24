@@ -10,6 +10,11 @@
 #include "parser_sass_datatype_conversion.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
+#include "utilities/json.hpp"
+#include <cstring>
+#include <fstream>
+
+using json = nlohmann::json;
 
 void print_stalls_percentage(const pc_issue_samples &index)
 {
@@ -36,10 +41,29 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param datatype_conversion_map Includes I2F, F2I and F2F conversion data
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
+void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, int save_as_json, std::string json_output_dir)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : datatype_conversion_map)
     {
+        json kernel_result = {
+            {"conversions", {
+                {"f2f", {
+                    {"total", 0},
+                    {"line_numbers", json::array()}
+                }},
+                {"i2f", {
+                    {"total", 0},
+                    {"line_numbers", json::array()}
+                }},
+                {"f2i", {
+                    {"total", 0},
+                    {"line_numbers", json::array()}
+                }},
+            }}
+        };
+
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
         {
@@ -50,9 +74,11 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         if (v_sass.F2F_count > 0)
         {
             std::cout << "WARNING   ::  There are " << v_sass.F2F_count << " F2F conversions found at line numbers: ";
+            kernel_result["conversions"]["f2f"]["total"] = v_sass.F2F_count;
             for (auto i : v_sass.F2F_line)
             {
                 std::cout << i << ", ";
+                kernel_result["conversions"]["f2f"]["line_numbers"].push_back(i);
             }
             std::cout << std::endl;
         }
@@ -64,9 +90,11 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         if (v_sass.I2F_count > 0)
         {
             std::cout << "WARNING   ::  There are " << v_sass.I2F_count << " I2F conversions found at line numbers: ";
+            kernel_result["conversions"]["i2f"]["total"] = v_sass.I2F_count;
             for (auto i : v_sass.I2F_line)
             {
                 std::cout << i << ", ";
+                kernel_result["conversions"]["i2f"]["line_numbers"].push_back(i);
             }
             std::cout << std::endl;
         }
@@ -78,9 +106,11 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         if (v_sass.F2I_count > 0)
         {
             std::cout << "WARNING   ::  There are " << v_sass.F2I_count << " F2I conversions found at line numbers: ";
+            kernel_result["conversions"]["f2i"]["total"] = v_sass.I2F_count;
             for (auto i : v_sass.F2I_line)
             {
                 std::cout << i << ", ";
+                kernel_result["conversions"]["f2i"]["line_numbers"].push_back(i);
             }
             std::cout << std::endl;
         }
@@ -97,8 +127,22 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 std::cout << "For F2F (32 to 64 bit) conversions, check Tex throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check MIO throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check Short Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active << " %" << std::endl;
+                kernel_result["metrics"] = {};
+                kernel_result["metrics"]["tex_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active;
+                kernel_result["metrics"]["mio_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active;
+                kernel_result["metrics"]["short_scoreboard_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active;
             }
         }
+
+        result[k_sass] = kernel_result;
+    }
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/datatype_conversion.json");
+        json_file << result.dump();
+        json_file.close();
     }
 }
 
@@ -113,7 +157,10 @@ int main(int argc, char **argv)
     std::string filename_metrics = argv[5];
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(filename_metrics);
 
-    merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map);
+    int save_as_json = std::strcmp(argv[6], "true") == 0;
+    std::string json_output_dir = argv[7];
+
+    merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map, save_as_json, json_output_dir);
 
     return 0;
 }

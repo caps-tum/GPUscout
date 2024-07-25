@@ -10,9 +10,13 @@
 #include "parser_sass_divergence.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
+#include "utilities/json.hpp"
 
-void print_stalls_percentage(const pc_issue_samples &index)
+using json = nlohmann::json;
+
+json print_stalls_percentage(const pc_issue_samples &index)
 {
+    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -30,7 +34,9 @@ void print_stalls_percentage(const pc_issue_samples &index)
     {
         // std::cout << "Stall detected: " << k << ", accounting for: " << (100.0*v)/total_samples<< " % of stalls for this SASS" << std::endl;
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
+        stalls[k] = (100.0  * v / total_samples);
     }
+    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for detecting conditional branching and warp divergence
@@ -38,10 +44,16 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param branch_target_map Includes target branch information
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, int> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
+void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, int> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, int save_as_json, std::string json_output_dir)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : divergence_analysis_map)
     {
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
         {
@@ -51,9 +63,16 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
         std::cout << "--------------------- Warp divergence detection analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
         for (const auto &index_sass : v_sass)
         {
+            json line_result;
+
             if (index_sass.line_number != branch_target_map[index_sass.target_branch]) // branches that has target branch in the same line numbers are not considered as conditional branching
             {
                 std::cout << "Conditional branching detected in line number " << index_sass.line_number << " of your code, with target branch: " << index_sass.target_branch << " (target branch starts at line number: " << branch_target_map[index_sass.target_branch] << ")" << std::endl;
+                line_result = {
+                   {"line_number", index_sass.line_number} ,
+                   {"target_branch", index_sass.target_branch},
+                   {"target_branch_start_line_number", branch_target_map[index_sass.target_branch]}
+                };
 
                 // Map kernel with the PC Stall map
                 for (auto [k_pc, v_pc] : pc_stall_map)
@@ -64,7 +83,8 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                         {
                             if ((index_sass.line_number == j.line_number)) // analyze for the same line numbers in the code
                             {
-                                print_stalls_percentage(j);
+                                json stalls = print_stalls_percentage(j);
+                                line_result["stalls"] = stalls;
                                 break; // once register matched/found, get out of the loop
                             }
                         }
@@ -87,9 +107,23 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                 {
                     std::cout << "INFO  ::  No branches are diverging in your code" << std::endl;
                 }
+
+                kernel_result["metrics"] = {
+                    {"branch_divergence_percent", branch_divergence_percent}
+                };
             }
         }
+        result[k_sass] = kernel_result;
     }
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/warp_divergence.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
+
 }
 
 int main(int argc, char **argv)
@@ -105,5 +139,8 @@ int main(int argc, char **argv)
     std::string filename_metrics = argv[5];
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(filename_metrics);
 
-    merge_analysis_divergence(divergence_analysis_map, branch_target_map, pc_stall_map, metric_map);
+    int save_as_json = std::strcmp(argv[6], "true") == 0;
+    std::string json_output_dir = argv[7];
+
+    merge_analysis_divergence(divergence_analysis_map, branch_target_map, pc_stall_map, metric_map, save_as_json, json_output_dir);
 }

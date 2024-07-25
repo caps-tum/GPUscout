@@ -43,7 +43,7 @@ void merge_analysis_deadlock_detection(std::unordered_map<std::string, deadlock_
     {
         std::ofstream json_file;
         json_file.open(json_output_dir + "/deadlock_detection.json");
-        json_file << result.dump();
+        json_file << result.dump(4);
         json_file.close();
     }
 }

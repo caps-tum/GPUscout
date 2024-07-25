@@ -11,6 +11,10 @@
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
 #include "parser_liveregisters.hpp"
+#include "utilities/json.hpp"
+#include <cstddef>
+
+using json = nlohmann::json;
 
 std::string get_register_from_line(std::string line)
 {
@@ -27,8 +31,9 @@ std::string get_register_from_line(std::string line)
     return last_string;
 }
 
-void print_stalls_percentage(const pc_issue_samples &index)
+json print_stalls_percentage(const pc_issue_samples &index)
 {
+    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -45,7 +50,9 @@ void print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
+        stalls[k] = (100.0  * v / total_samples);
     }
+    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for using restricted pointers
@@ -53,10 +60,15 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
 /// @param live_register_map Currently used (or live) register count denoting register pressure
-void merge_analysis_restrict(std::unordered_map<std::string, std::vector<register_used>> restrict_analysis_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map)
+void merge_analysis_restrict(std::unordered_map<std::string, std::vector<register_used>> restrict_analysis_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map, int save_as_json, std::string json_output_dir)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : restrict_analysis_map)
     {
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
         {
@@ -67,6 +79,7 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
         std::vector<register_used> unused_registers;
         for (auto index_sass : v_sass)
         {
+            json line_result = {};
             if (index_sass.flag == NOT_USED)
             {
                 if (index_sass.read_only_mem_used)
@@ -79,6 +92,12 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
                     unused_registers.push_back(index_sass);
                     std::cout << "WARNING  ::  You can benifit from using __restrict__ for register " << index_sass.register_number << " at line number " << index_sass.line_number << " of your code" << std::endl;
                 }
+
+                line_result = {
+                    {"line_number", index_sass.line_number},
+                    {"register", index_sass.register_number},
+                    {"read_only_memory_used", index_sass.read_only_mem_used}
+                };
 
                 // Map kernel with the PC Stall map
                 for (auto [k_pc, v_pc] : pc_stall_map)
@@ -97,15 +116,18 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
                                 {
                                     // std::cout << reg_search_it->gen_reg << ", " << reg_search_it->pred_reg << " ," << reg_search_it->u_gen_reg << std::endl;
                                     std::cout << "INFO  ::  Total current registers for the SASS instruction: " << reg_search_it->gen_reg + reg_search_it->pred_reg + reg_search_it->u_gen_reg << std::endl;
+                                    line_result["used_register_count"] = reg_search_it->gen_reg + reg_search_it->pred_reg + reg_search_it->u_gen_reg;
                                     if (reg_search_it->change_reg_from_last > 0)
                                     {
                                         std::cout << "Increased register pressure with " << std::abs(reg_search_it->change_reg_from_last) << " more registers compared to last SASS instruction" << std::endl;
+                                        line_result["register_pressure_increase"] = std::abs(reg_search_it->change_reg_from_last);
                                     }
                                 }
 
                                 if (!index_sass.read_only_mem_used)
                                 {
-                                    print_stalls_percentage(j);
+                                    json stalls = print_stalls_percentage(j);
+                                    line_result["stalls"] = stalls;
                                 }
                                 break; // once register matched/found, get out of the loop
                             }
@@ -113,6 +135,8 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
                     }
                 }
             }
+            if (!line_result.is_null())
+                kernel_result["occurrences"].push_back(line_result);
         }
 
         if (unused_registers.size() == 0)
@@ -127,8 +151,21 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "If using __restrict__ (read-only cache), check IMC miss: " << v_metric.metrics_list.smsp__warp_issue_stalled_imc_miss_per_warp_active << " % per warp active" << std::endl;
+                kernel_result["metrics"] = {
+                    {"smsp__warp_issue_stalled_imc_miss_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_imc_miss_per_warp_active}
+                };
             }
         }
+
+        result[k_sass] = kernel_result;
+    }
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/use_restricted.json");
+        json_file << result.dump(4);
+        json_file.close();
     }
 }
 
@@ -146,5 +183,8 @@ int main(int argc, char **argv)
     std::string filename_registers = argv[6];
     std::unordered_map<std::string, std::vector<live_registers>> live_register_map = live_registers_analysis(filename_registers);
 
-    merge_analysis_restrict(restrict_analysis_map, pc_stall_map, metric_map, live_register_map);
+    int save_as_json = std::strcmp(argv[7], "true") == 0;
+    std::string json_output_dir = argv[8];
+
+    merge_analysis_restrict(restrict_analysis_map, pc_stall_map, metric_map, live_register_map, save_as_json, json_output_dir);
 }

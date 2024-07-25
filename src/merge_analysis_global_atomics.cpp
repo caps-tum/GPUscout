@@ -35,7 +35,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k + "_perc"] = (100.0  * v / total_samples);
+        stalls[k] = (100.0  * v / total_samples);
     }
 
     return stalls;
@@ -53,14 +53,8 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
     for (auto [k_sass, v_sass] : ptx_atomic_map)
     {
         json kernel_result = {
-            {"global_atomics", {
-                {"total", 0},
-                {"line_numbers", {}},
-            }},
-            {"shared_atomics", {
-                {"total", 0},
-                {"line_numbers", {}},
-            }}
+            {"occurrences", json::array()},
+            {"stalls", json::array()} // TODO: move into occurrences
         };
 
         // Fix for blank kernel name appearing in the analysis_map
@@ -73,7 +67,6 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
         if (v_sass.atom_global_count > 0)
         {
             std::cout << "WARNING  ::  Number of global atomic instructions in the ptx file: " << v_sass.atom_global_count << " detected" << std::endl;
-            kernel_result["global_atomics"]["total"] = v_sass.atom_global_count;
             for (const auto &i : v_sass.atom_global_line_number)
             {
                 for (const auto [k_branch, v_branch] : branch_map)
@@ -88,9 +81,11 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                                 if (k.inside_for_loop == true)
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
-                                result["global_atomics"]["line_numbers"][i] = {
-                                    {"in_for_loop", k.inside_for_loop}
-                                };
+                                kernel_result["occurrences"].push_back({
+                                    {"line_number", i},
+                                    {"in_for_loop", k.inside_for_loop},
+                                    {"is_global", true},
+                                });
                             }
                         }
                     }
@@ -105,7 +100,6 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
         if (v_sass.atom_shared_count > 0)
         {
             std::cout << "INFO  ::  Number of shared atomic instructions in the ptx file: " << v_sass.atom_shared_count << " recorded." << std::endl;
-            kernel_result["shared_atomics"]["total"] = v_sass.atom_shared_count;
             for (const auto &i : v_sass.atom_shared_line_number)
             {
                 for (const auto [k_branch, v_branch] : branch_map)
@@ -120,9 +114,11 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                                 if (k.inside_for_loop == true)
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
-                                result["shared_atomics"]["line_numbers"][i] = {
-                                    {"in_for_loop", k.inside_for_loop}
-                                };
+                                kernel_result["occurrences"].push_back({
+                                    {"line_number", i},
+                                    {"in_for_loop", k.inside_for_loop},
+                                    {"is_global", false},
+                                });
                             }
                         }
                     }
@@ -150,7 +146,8 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                             {
                                 json stalls = print_stalls_percentage(j);
                                 printed_line_numbers.push_back(i); // stalls for this code line number is already printed.
-                                kernel_result["global_atomics"]["line_numbers"][i]["stalls"] = stalls;
+                                stalls["line_number"] = i;
+                                kernel_result["stalls"].push_back(stalls);
                             }
 
                             break;
@@ -164,7 +161,8 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                             {
                                 json stalls = print_stalls_percentage(j);
                                 printed_line_numbers.push_back(i); // stalls for this code line number is already printed.
-                                kernel_result["shared_atomics"]["line_numbers"][i]["stalls"] = stalls;
+                                stalls["line_number"] = i;
+                                kernel_result["stalls"].push_back(stalls);
                             }
 
                             break;
@@ -179,19 +177,21 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
         {
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
-                kernel_result["metrics"] = {};
                 std::cout << "INFO  ::  Data flow in memory for atomic operations" << std::endl;
                 json memory_flow_metrics = atomic_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check atomic/reduction operation)
-                kernel_result["metrics"]["memory_flow"] = memory_flow_metrics;
 
                 // copied global_mem_atomics_analysis from stalls_static_analysis_relation() method
                 std::cout << "Incase of using global atomics, check LG Throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "Incase of using global atomics, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "INFO  ::  For high values of the above stalls, you should prefer using shared memory instead of global memory for atomics" << std::endl;
                 std::cout << "Incase of using shared atomics, check MIO throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active << " % per warp active" << std::endl;
-                kernel_result["metrics"]["lg_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active;
-                kernel_result["metrics"]["long_scoreboard_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active;
-                kernel_result["metrics"]["mio_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active;
+
+                kernel_result["metrics"] = {
+                    {"smsp__warp_issue_stalled_lg_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active},
+                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
+                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
+                    {"memory_flow", memory_flow_metrics}
+                };
             }
         }
 
@@ -202,7 +202,7 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
     {
         std::ofstream json_file;
         json_file.open(json_output_dir + "/global_atomics.json");
-        json_file << result.dump();
+        json_file << result.dump(4);
         json_file.close();
     }
 }

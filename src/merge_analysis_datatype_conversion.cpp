@@ -48,20 +48,7 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
     for (auto [k_sass, v_sass] : datatype_conversion_map)
     {
         json kernel_result = {
-            {"conversions", {
-                {"f2f", {
-                    {"total", 0},
-                    {"line_numbers", json::array()}
-                }},
-                {"i2f", {
-                    {"total", 0},
-                    {"line_numbers", json::array()}
-                }},
-                {"f2i", {
-                    {"total", 0},
-                    {"line_numbers", json::array()}
-                }},
-            }}
+            {"occurrences", json::array()}
         };
 
         // Fix for blank kernel name appearing in the analysis_map
@@ -74,11 +61,13 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         if (v_sass.F2F_count > 0)
         {
             std::cout << "WARNING   ::  There are " << v_sass.F2F_count << " F2F conversions found at line numbers: ";
-            kernel_result["conversions"]["f2f"]["total"] = v_sass.F2F_count;
             for (auto i : v_sass.F2F_line)
             {
                 std::cout << i << ", ";
-                kernel_result["conversions"]["f2f"]["line_numbers"].push_back(i);
+                kernel_result["occurrences"].push_back({
+                    {"line_number", i},
+                    {"type", "F2F"}
+                });
             }
             std::cout << std::endl;
         }
@@ -90,11 +79,13 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         if (v_sass.I2F_count > 0)
         {
             std::cout << "WARNING   ::  There are " << v_sass.I2F_count << " I2F conversions found at line numbers: ";
-            kernel_result["conversions"]["i2f"]["total"] = v_sass.I2F_count;
             for (auto i : v_sass.I2F_line)
             {
                 std::cout << i << ", ";
-                kernel_result["conversions"]["i2f"]["line_numbers"].push_back(i);
+                kernel_result["occurrences"].push_back({
+                    {"line_number", i},
+                    {"type", "I2F"}
+                });
             }
             std::cout << std::endl;
         }
@@ -106,11 +97,13 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         if (v_sass.F2I_count > 0)
         {
             std::cout << "WARNING   ::  There are " << v_sass.F2I_count << " F2I conversions found at line numbers: ";
-            kernel_result["conversions"]["f2i"]["total"] = v_sass.I2F_count;
             for (auto i : v_sass.F2I_line)
             {
                 std::cout << i << ", ";
-                kernel_result["conversions"]["f2i"]["line_numbers"].push_back(i);
+                kernel_result["occurrences"].push_back({
+                    {"line_number", i},
+                    {"type", "F2I"}
+                });
             }
             std::cout << std::endl;
         }
@@ -127,10 +120,11 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 std::cout << "For F2F (32 to 64 bit) conversions, check Tex throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check MIO throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check Short Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active << " %" << std::endl;
-                kernel_result["metrics"] = {};
-                kernel_result["metrics"]["tex_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active;
-                kernel_result["metrics"]["mio_throttle_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active;
-                kernel_result["metrics"]["short_scoreboard_perc"] = v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active;
+                kernel_result["metrics"] = {
+                    {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
+                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
+                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active}
+                };
             }
         }
 
@@ -141,7 +135,7 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
     {
         std::ofstream json_file;
         json_file.open(json_output_dir + "/datatype_conversion.json");
-        json_file << result.dump();
+        json_file << result.dump(4);
         json_file.close();
     }
 }

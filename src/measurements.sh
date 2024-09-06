@@ -65,7 +65,7 @@ memory_l1_wavefronts_shared_ideal,\
 sm__sass_inst_executed_op_texture.sum,\
 l1tex__t_sectors_pipe_tex_mem_texture.sum,\
 l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate.pct,\
-smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct\
+smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct \
 \
 \"${executable_with_args}\"
 
@@ -176,6 +176,27 @@ ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt \
 ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt \
 ${gpuscout_tmp_dir}/${run_prefix}_metrics_list \
 ${json} ${gpuscout_output_dir}
+
+if [ "$json" = true ]; then
+RES_FILE="${gpuscout_tmp_dir}/result.json"
+
+touch "${RES_FILE}"
+echo "{" >> "${RES_FILE}"
+
+first=true
+for file in "${gpuscout_output_dir}"/*.json
+do
+    if [[ "$RES_FILE" != "$file" ]]; then
+        if [ "$first" != true ]; then
+            echo "," >> ${RES_FILE}
+        fi
+        echo "\"$(basename ${file} .json)\":" >> ${RES_FILE}
+        cat ${file} >> ${RES_FILE}
+        first=false
+    fi
+done
+echo "}" >> ${RES_FILE}
+fi
 
 echo "======================================================================================================"
 

@@ -220,6 +220,8 @@ source ${gpuscout_dir}/analysis/measurements.sh
 # Exit
 echo -e "Profiling complete! Starting cleanup . . . . . . . . . . . . . . . . . . . ."
 
+rm -rf ${gpuscout_output_dir}
+
 # Remove the PC sampling files generate before release/production, else keep them for debug
 # rm $PWD/sampling_utilities/sampling_continuous/*_pcsampling_*.dat
 # rm $PWD/sampling_utilities/sampling_utility/pcsampling_$file_name.txt

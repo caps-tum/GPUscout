@@ -177,8 +177,14 @@ ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt \
 ${gpuscout_tmp_dir}/${run_prefix}_metrics_list \
 ${json} ${gpuscout_output_dir}
 
+# Merge all individual JSON files
+
 if [ "$json" = true ]; then
 RES_FILE="${gpuscout_tmp_dir}/result.json"
+
+if [ -f "$RES_FILE" ]; then
+    rm "${RES_FILE}"
+fi
 
 touch "${RES_FILE}"
 echo "{" >> "${RES_FILE}"
@@ -195,6 +201,20 @@ do
         first=false
     fi
 done
+
+echo "," >> ${RES_FILE}
+echo "\"source_files\": {" >> ${RES_FILE}
+rm -rf ${gpuscout_tmp_dir}/source
+mkdir ${gpuscout_tmp_dir}/source
+files=1
+grep .file ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-ptx.txt | sed -E "s/\.file.*[0-9]+\ //g" | sed "s/\"//g" | while read -r line; do
+    cp $line ${gpuscout_tmp_dir}/source/${files}.cu
+    echo "\"${line}\": \"${gpuscout_tmp_dir}/source/${files}.cu\"," >> ${RES_FILE}
+    ((files++))
+done
+sed -i "$ s/.$//" ${RES_FILE}
+echo "}" >> ${RES_FILE}
+
 echo "}" >> ${RES_FILE}
 fi
 

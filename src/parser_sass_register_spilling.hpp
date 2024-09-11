@@ -220,6 +220,7 @@ std::tuple<std::unordered_map<std::string, std::vector<local_memory_counter>>, s
                     {
                         last_reg_match->last_line_number = code_line_number;
                         last_reg_match->last_instruction = get_instruction_from_line(line);
+                        last_reg_match->last_pcOffset = get_pcoffset_sass(line);
                     }
                 }
                 else

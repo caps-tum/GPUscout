@@ -70,6 +70,7 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
             json line_result = {
                 {"line_number", index_sass.line_number},
                 {"register", index_sass.register_number},
+                {"pc_offset", index_sass.pcOffset},
                 {"operation", lmem_operation_type_string[index_sass.op_type]}
             };
             for (auto last_reg : track_register_map[k_sass])
@@ -79,7 +80,8 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                     std::cout << "The previous compute instruction of register: " << index_sass.register_number << " before spilling was " << last_reg.last_instruction << " at line number " << last_reg.last_line_number << " of your code" << std::endl;
                     line_result["previous_compute_instruction"] = {
                         {"instruction", last_reg.last_instruction},
-                        {"line_number", last_reg.last_line_number}
+                        {"line_number", last_reg.last_line_number},
+                        {"pc_offset", last_reg.last_pcOffset}
                     };
                 }
             }

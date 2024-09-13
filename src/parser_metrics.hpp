@@ -453,11 +453,11 @@ json texture_data_memory_flow(const kernel_metrics &all_metrics)
 
     return {
         {"kernel_to_tex_instr", all_metrics.metrics_list.sm__sass_inst_executed_op_texture},
-        {"tex_to_l1_byte", all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_texture},
-        {"l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate},
-        {"l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
-        {"l1_to_l2__byte", requests_l1_l2_texture_ld},
-        {"l2_to_dram_byte", requests_l2_dram_ld},
+        {"tex_to_l1_bytes", all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_texture},
+        {"tex_to_l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate},
+        {"l1_to_l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
+        {"l1_to_l2__bytes", requests_l1_l2_texture_ld},
+        {"l2_to_dram_bytes", requests_l2_dram_ld},
     };
 }
 

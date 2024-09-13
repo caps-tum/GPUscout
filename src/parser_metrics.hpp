@@ -425,12 +425,12 @@ json atomic_data_memory_flow(const kernel_metrics &all_metrics)
     std::cout << "Kernel ---- request atomic data ----> Shared Memory " << all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom << " bytes" << std::endl;
 
     return {
-        {"l1_cache_miss_perc", 100 - l1_red_atom_hit_rate},
-        {"l2_cache_miss_perc", 100 - lts_red_atom_hit_rate},
-        {"l1_to_l2__byte", requests_l1_l2_global_red},
-        {"l2_to_dram_byte", requests_l2_dram_red},
-        {"global_mem_to_l1_byte", 32 * red_atom_requests},
-        {"kernel_to_shared_mem_byte", all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom}
+        {"global_to_l1_cache_miss_perc", 100 - l1_red_atom_hit_rate},
+        {"l1_to_l2_cache_miss_perc", 100 - lts_red_atom_hit_rate},
+        {"l1_to_l2__bytes", requests_l1_l2_global_red},
+        {"l2_to_dram_bytes", requests_l2_dram_red},
+        {"global_to_l1_red_atom_bytes", 32 * red_atom_requests},
+        {"kernel_to_shared_bytes", all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom}
     };
 }
 

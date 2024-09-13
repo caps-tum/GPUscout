@@ -58,6 +58,7 @@ struct register_access
     int register_load_count;
     int register_operation_count;
     std::string target_branch;
+    std::string pcOffset;
     std::string LDG_pcOffset;      // pcOffset of the load instruction of the register
     int count_to_shared_mem_store; // number of instructions (or cycles) between LDG and STS
     bool shared_mem_use;           // turn flag ON if the register contents are used in shared memory
@@ -213,6 +214,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                     register_obj.register_operation_count = 0;
                     register_obj.target_branch = current_target_branch;
                     register_obj.LDG_pcOffset = pcoffset_sass(line);
+                    register_obj.pcOffset = pcoffset_sass(line);
                     register_obj.count_to_shared_mem_store = 0;
                     register_vec.push_back(register_obj);
                 }
@@ -271,6 +273,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                     register_obj.register_operation_count = 0;
                     register_obj.target_branch = current_target_branch;
                     register_obj.LDG_pcOffset = "LDGSTS";       // for async LDGSTS, label the pcOffset as different
+                    register_obj.pcOffset = pcoffset_sass(line);
                     register_obj.count_to_shared_mem_store = 0;
                     register_vec.push_back(register_obj);
                 }

@@ -93,6 +93,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                         std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already using asynchronous global to shared memory copy at line number " << index_sass.line_number << " of your code" << std::endl;
                         line_result = {
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.LDG_pcOffset},
                             {"register", index_sass.register_number},
                             {"uses_shared_memory", true},
                             {"uses_async_global_to_shared_memory_copy", true},
@@ -105,6 +106,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                         std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already storing data in shared memory at line number " << index_sass.line_number << " of your code" << std::endl;
                         line_result = {
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.LDG_pcOffset},
                             {"register", index_sass.register_number},
                             {"uses_shared_memory", true},
                             {"uses_async_global_to_shared_memory_copy", false},
@@ -125,6 +127,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                             std::cout << "Register number " << index_sass.register_number << " at line number " << index_sass.line_number << " of your code has " << index_sass.register_load_count << " total global load counts and " << index_sass.register_operation_count << " computation instruction counts" << std::endl;
                             line_result = {
                                 {"line_number", index_sass.line_number},
+                                {"pc_offset", index_sass.LDG_pcOffset},
                                 {"register", index_sass.register_number},
                                 {"uses_shared_memory", false},
                                 {"global_load_count", index_sass.register_load_count},

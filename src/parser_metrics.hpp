@@ -144,216 +144,216 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
     for (auto i : data)
     {
         // Clean the " character from the metric name and metric value and remove the dot (uses German format here)
-        i[19].erase(std::remove(i[19].begin(), i[19].end(), '"'), i[19].end()); // metric name
-        i[23].erase(std::remove(i[23].begin(), i[23].end(), '"'), i[23].end()); // metric value
-        i[23].erase(std::remove(i[23].begin(), i[23].end(), '.'), i[23].end()); // remove the dot (since in numeral German, dot = comma in English)
-        std::replace(i[23].begin(), i[23].end(), ',', '.');                     // replace comma with dot
+        i[25].erase(std::remove(i[25].begin(), i[25].end(), '"'), i[25].end()); // metric name
+        i[29].erase(std::remove(i[29].begin(), i[29].end(), '"'), i[29].end()); // metric value
+        i[29].erase(std::remove(i[29].begin(), i[29].end(), '.'), i[29].end()); // remove the dot (since in numeral German, dot = comma in English)
+        std::replace(i[29].begin(), i[29].end(), ',', '.');                     // replace comma with dot
         // std::cout << i[9] << std::endl;
 
         // Note: loosing the decimal part of the value since in German it is denoted as comma and we are using comma as delimiter
-        if (i[19] == "smsp__warp_issue_stalled_barrier_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_barrier_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_barrier_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_barrier_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_membar_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_membar_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_membar_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_membar_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_short_scoreboard_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_short_scoreboard_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_wait_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_wait_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_wait_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_wait_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__thread_inst_executed_per_inst_executed.ratio")
+        if (i[25] == "smsp__thread_inst_executed_per_inst_executed.ratio")
         {
-            metric_obj.smsp__thread_inst_executed_per_inst_executed = std::stod(i[23]);
+            metric_obj.smsp__thread_inst_executed_per_inst_executed = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_branch_targets.avg")
+        if (i[25] == "sm__sass_branch_targets.avg")
         {
-            metric_obj.sm__sass_branch_targets = std::stod(i[23]);
+            metric_obj.sm__sass_branch_targets = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_branch_targets_threads_divergent.avg")
+        if (i[25] == "sm__sass_branch_targets_threads_divergent.avg")
         {
-            metric_obj.sm__sass_branch_targets_threads_divergent = std::stod(i[23]);
+            metric_obj.sm__sass_branch_targets_threads_divergent = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_imc_miss_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_imc_miss_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_imc_miss_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_imc_miss_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_long_scoreboard_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_long_scoreboard_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_long_scoreboard_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_long_scoreboard_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "sm__warps_active.avg.pct_of_peak_sustained_active")
+        if (i[25] == "sm__warps_active.avg.pct_of_peak_sustained_active")
         {
-            metric_obj.sm__warps_active = std::stod(i[23]);
+            metric_obj.sm__warps_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_lg_throttle_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_lg_throttle_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_lg_throttle_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_lg_throttle_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_mio_throttle_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_mio_throttle_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_mio_throttle_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_mio_throttle_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "smsp__warp_issue_stalled_tex_throttle_per_warp_active.pct")
+        if (i[25] == "smsp__warp_issue_stalled_tex_throttle_per_warp_active.pct")
         {
-            metric_obj.smsp__warp_issue_stalled_tex_throttle_per_warp_active = std::stod(i[23]);
+            metric_obj.smsp__warp_issue_stalled_tex_throttle_per_warp_active = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_inst_executed_op_global_red.sum")
+        if (i[25] == "sm__sass_inst_executed_op_global_red.sum")
         {
-            metric_obj.sm__sass_inst_executed_op_global_red = std::stod(i[23]);
+            metric_obj.sm__sass_inst_executed_op_global_red = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_inst_executed_op_shared_atom.sum")
+        if (i[25] == "sm__sass_inst_executed_op_shared_atom.sum")
         {
-            metric_obj.sm__sass_inst_executed_op_shared_atom = std::stod(i[23]);
+            metric_obj.sm__sass_inst_executed_op_shared_atom = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum")
+        if (i[25] == "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum")
         {
-            metric_obj.l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld = std::stod(i[23]);
+            metric_obj.l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_inst_executed_op_shared_ld.sum")
+        if (i[25] == "sm__sass_inst_executed_op_shared_ld.sum")
         {
-            metric_obj.sm__sass_inst_executed_op_shared_ld = std::stod(i[23]);
+            metric_obj.sm__sass_inst_executed_op_shared_ld = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum")
+        if (i[25] == "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum")
         {
-            metric_obj.l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st = std::stod(i[23]);
+            metric_obj.l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_inst_executed_op_shared_st.sum")
+        if (i[25] == "sm__sass_inst_executed_op_shared_st.sum")
         {
-            metric_obj.sm__sass_inst_executed_op_shared_st = std::stod(i[23]);
+            metric_obj.sm__sass_inst_executed_op_shared_st = std::stod(i[29]);
         }
-        if (i[19] == "smsp__sass_average_data_bytes_per_wavefront_mem_shared.pct")
+        if (i[25] == "smsp__sass_average_data_bytes_per_wavefront_mem_shared.pct")
         {
-            metric_obj.smsp__sass_average_data_bytes_per_wavefront_mem_shared = std::stod(i[23]);
+            metric_obj.smsp__sass_average_data_bytes_per_wavefront_mem_shared = std::stod(i[29]);
         }
-        if (i[19] == "smsp__inst_executed_op_local_ld.sum")
+        if (i[25] == "smsp__inst_executed_op_local_ld.sum")
         {
-            metric_obj.smsp__inst_executed_op_local_ld = std::stod(i[23]);
+            metric_obj.smsp__inst_executed_op_local_ld = std::stod(i[29]);
         }
-        if (i[19] == "smsp__inst_executed_op_local_st.sum")
+        if (i[25] == "smsp__inst_executed_op_local_st.sum")
         {
-            metric_obj.smsp__inst_executed_op_local_st = std::stod(i[23]);
+            metric_obj.smsp__inst_executed_op_local_st = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sectors_op_atom.sum")
+        if (i[25] == "lts__t_sectors_op_atom.sum")
         {
-            metric_obj.lts__t_sectors_op_atom = std::stod(i[23]);
+            metric_obj.lts__t_sectors_op_atom = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sectors_op_read.sum")
+        if (i[25] == "lts__t_sectors_op_read.sum")
         {
-            metric_obj.lts__t_sectors_op_read = std::stod(i[23]);
+            metric_obj.lts__t_sectors_op_read = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sectors_op_red.sum")
+        if (i[25] == "lts__t_sectors_op_red.sum")
         {
-            metric_obj.lts__t_sectors_op_red = std::stod(i[23]);
+            metric_obj.lts__t_sectors_op_red = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sectors_op_write.sum")
+        if (i[25] == "lts__t_sectors_op_write.sum")
         {
-            metric_obj.lts__t_sectors_op_write = std::stod(i[23]);
+            metric_obj.lts__t_sectors_op_write = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sector_hit_rate.pct")
+        if (i[25] == "l1tex__t_sector_hit_rate.pct")
         {
-            metric_obj.l1tex__t_sector_hit_rate = std::stod(i[23]);
+            metric_obj.l1tex__t_sector_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_inst_executed_op_global_ld.sum")
+        if (i[25] == "sm__sass_inst_executed_op_global_ld.sum")
         {
-            metric_obj.sm__sass_inst_executed_op_global_ld = std::stod(i[23]);
+            metric_obj.sm__sass_inst_executed_op_global_ld = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum")
+        if (i[25] == "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum")
         {
-            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_ld = std::stod(i[23]);
+            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_ld = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct")
+        if (i[25] == "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct")
         {
-            metric_obj.l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate = std::stod(i[23]);
+            metric_obj.l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sector_op_read_hit_rate.pct")
+        if (i[25] == "lts__t_sector_op_read_hit_rate.pct")
         {
-            metric_obj.lts__t_sector_op_read_hit_rate = std::stod(i[23]);
+            metric_obj.lts__t_sector_op_read_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum")
+        if (i[25] == "l1tex__t_sectors_pipe_lsu_mem_local_op_ld.sum")
         {
-            metric_obj.l1tex__t_sectors_pipe_lsu_mem_local_op_ld = std::stod(i[23]);
+            metric_obj.l1tex__t_sectors_pipe_lsu_mem_local_op_ld = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate.pct")
+        if (i[25] == "l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate.pct")
         {
-            metric_obj.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate = std::stod(i[23]);
+            metric_obj.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sectors_pipe_lsu_mem_global_op_red.sum")
+        if (i[25] == "l1tex__t_sectors_pipe_lsu_mem_global_op_red.sum")
         {
-            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_red = std::stod(i[23]);
+            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_red = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sectors_pipe_lsu_mem_global_op_atom.sum")
+        if (i[25] == "l1tex__t_sectors_pipe_lsu_mem_global_op_atom.sum")
         {
-            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_atom = std::stod(i[23]);
+            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_atom = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate.pct")
+        if (i[25] == "l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate.pct")
         {
-            metric_obj.l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate = std::stod(i[23]);
+            metric_obj.l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate.pct")
+        if (i[25] == "l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate.pct")
         {
-            metric_obj.l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate = std::stod(i[23]);
+            metric_obj.l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sector_op_red_hit_rate.pct")
+        if (i[25] == "lts__t_sector_op_red_hit_rate.pct")
         {
-            metric_obj.lts__t_sector_op_red_hit_rate = std::stod(i[23]);
+            metric_obj.lts__t_sector_op_red_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "lts__t_sector_op_atom_hit_rate.pct")
+        if (i[25] == "lts__t_sector_op_atom_hit_rate.pct")
         {
-            metric_obj.lts__t_sector_op_atom_hit_rate = std::stod(i[23]);
+            metric_obj.lts__t_sector_op_atom_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_data_bytes_mem_shared_op_atom.sum")
+        if (i[25] == "sm__sass_data_bytes_mem_shared_op_atom.sum")
         {
-            metric_obj.sm__sass_data_bytes_mem_shared_op_atom = std::stod(i[23]);
+            metric_obj.sm__sass_data_bytes_mem_shared_op_atom = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__m_xbar2l1tex_read_sectors_mem_lg_op_ld.sum.pct_of_peak_sustained_elapsed")
+        if (i[25] == "l1tex__m_xbar2l1tex_read_sectors_mem_lg_op_ld.sum.pct_of_peak_sustained_elapsed")
         {
-            metric_obj.l1tex__m_xbar2l1tex_read_sectors_mem_lg_op_ld_bandwidth = std::stod(i[23]);
+            metric_obj.l1tex__m_xbar2l1tex_read_sectors_mem_lg_op_ld_bandwidth = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio")
+        if (i[25] == "l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio")
         {
-            metric_obj.l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld = std::stod(i[23]);
+            metric_obj.l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld = std::stod(i[29]);
         }
-        if (i[19] == "smsp__inst_executed_op_global_ld.sum")
+        if (i[25] == "smsp__inst_executed_op_global_ld.sum")
         {
-            metric_obj.smsp__inst_executed_op_global_ld = std::stod(i[23]);
+            metric_obj.smsp__inst_executed_op_global_ld = std::stod(i[29]);
         }
-        if (i[19] == "memory_l2_theoretical_sectors_global")
+        if (i[25] == "memory_l2_theoretical_sectors_global")
         {
-            metric_obj.memory_l2_theoretical_sectors_global = std::stod(i[23]);
+            metric_obj.memory_l2_theoretical_sectors_global = std::stod(i[29]);
         }
-        if (i[19] == "memory_l2_theoretical_sectors_global_ideal")
+        if (i[25] == "memory_l2_theoretical_sectors_global_ideal")
         {
-            metric_obj.memory_l2_theoretical_sectors_global_ideal = std::stod(i[23]);
+            metric_obj.memory_l2_theoretical_sectors_global_ideal = std::stod(i[29]);
         }
-        if (i[19] == "memory_l1_wavefronts_shared")
+        if (i[25] == "memory_l1_wavefronts_shared")
         {
-            metric_obj.memory_l1_wavefronts_shared = std::stod(i[23]);
+            metric_obj.memory_l1_wavefronts_shared = std::stod(i[29]);
         }
-        if (i[19] == "memory_l1_wavefronts_shared_ideal")
+        if (i[25] == "memory_l1_wavefronts_shared_ideal")
         {
-            metric_obj.memory_l1_wavefronts_shared_ideal = std::stod(i[23]);
+            metric_obj.memory_l1_wavefronts_shared_ideal = std::stod(i[29]);
         }
-        if (i[19] == "sm__sass_inst_executed_op_texture.sum")
+        if (i[25] == "sm__sass_inst_executed_op_texture.sum")
         {
-            metric_obj.sm__sass_inst_executed_op_texture = std::stod(i[23]);
+            metric_obj.sm__sass_inst_executed_op_texture = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sectors_pipe_tex_mem_texture.sum")
+        if (i[25] == "l1tex__t_sectors_pipe_tex_mem_texture.sum")
         {
-            metric_obj.l1tex__t_sectors_pipe_tex_mem_texture = std::stod(i[23]);
+            metric_obj.l1tex__t_sectors_pipe_tex_mem_texture = std::stod(i[29]);
         }
-        if (i[19] == "l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate.pct")
+        if (i[25] == "l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate.pct")
         {
-            metric_obj.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate = std::stod(i[23]);
+            metric_obj.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate = std::stod(i[29]);
         }
-        if (i[19] == "smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct")
+        if (i[25] == "smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct")
         {
-            metric_obj.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld = std::stod(i[23]);
+            metric_obj.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld = std::stod(i[29]);
         }
 
         std::string id_name = i[9]; // key of the map is the name of the kernel
@@ -390,14 +390,15 @@ json load_data_memory_flow(const kernel_metrics &all_metrics)
     std::cout << "L2 cache ---- request load data ----> DRAM " << requests_l2_dram_ld << " bytes" << std::endl;
 
     return {
-        {"kernel_to_global_mem_instr", all_metrics.metrics_list.sm__sass_inst_executed_op_global_ld},
-        {"global_mem_to_l1_byte", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld},
-        {"l1_to_l2_byte", requests_l1_l2_global_ld},
-        {"local_mem_to_l1_byte", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_local_op_ld},
-        {"l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate},
-        {"l1_to_l2_byte", requests_l1_l2_local_ld},
-        {"l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
-        {"l2_to_dram_byte", requests_l2_dram_ld}
+        {"num_loads", all_metrics.metrics_list.sm__sass_inst_executed_op_global_ld},
+        {"global_to_l1_bytes", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld},
+        {"global_to_l1_cache_miss_perc", all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate},
+        {"global_l1_to_l2_bytes", requests_l1_l2_global_ld},
+        {"local_to_l1_bytes", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_local_op_ld},
+        {"local_to_l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate},
+        {"local_l1_to_l2_bytes", requests_l1_l2_local_ld},
+        {"l1_to_l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
+        {"l2_to_dram_bytes", requests_l2_dram_ld}
     };
 }
 
@@ -540,8 +541,8 @@ json shared_memory_bank_conflict(const kernel_metrics &all_metrics)
     // https://github.com/Kobzol/hardware-effects-gpu/blob/master/bank-conflicts/README.md
     // Incase of bank conflicts, the shared memory efficiency will be quite low
     std::cout << "Shared memory efficiency for load operations: " << all_metrics.metrics_list.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld << " %" << std::endl;
-    result["shared_mem_ld_efficiency_perc"] = all_metrics.metrics_list.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld;
-    result["shared_mem_data_req_made"] = all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld;
+    result["shared_mem_load_efficiency_perc"] = all_metrics.metrics_list.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld;
+    result["shared_mem_data_requests"] = all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld;
     // Incase of n-way bank conflict, shared_load_transactions_per_request should be n
     if (all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld == 0)
     {

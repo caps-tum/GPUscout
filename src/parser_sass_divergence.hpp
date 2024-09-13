@@ -24,7 +24,13 @@
 struct branch_counter
 {
     int line_number;
+    std::string pcOffset;
     std::string target_branch;
+};
+
+struct target_line {
+    int line_number;
+    std::string pcOffset;
 };
 
 std::string find_branch(const std::string &line)
@@ -48,10 +54,22 @@ std::string find_branch(const std::string &line)
     return substr;
 }
 
+std::string get_pcoffset_sass(std::string line)
+{
+    //         /*00a0*/                   ISETP.GE.AND P1, PT, R2, c[0x0][0x168], PT ;         -> extract 00a0
+    std::string substr;
+
+    std::istringstream ss(line);
+    std::getline(ss, substr, '*');
+    std::getline(ss, substr, '*');
+
+    return substr;
+}
+
 /// @brief Detects conditional branching
 /// @param filename Disassembled SASS file
 /// @return Tuple of two maps, first map includes branch information and second map includes target branch line number
-std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::unordered_map<std::string, int>> branches_detection(const std::string &filename)
+std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::unordered_map<std::string, target_line>> branches_detection(const std::string &filename)
 {
     std::string line;
     std::fstream file(filename, std::ios::in);
@@ -62,7 +80,7 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
     std::string kernel_name;
     int code_line_number;
 
-    std::unordered_map<std::string, int> branch_target_line_number_map;
+    std::unordered_map<std::string, target_line> branch_target_line_number_map;
 
     if (file.is_open())
     {
@@ -86,6 +104,7 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
             if (line.find(" BRA ") != std::string::npos)
             {
                 counter_obj.line_number = code_line_number;
+                counter_obj.pcOffset = get_pcoffset_sass(line);
                 counter_obj.target_branch = find_branch(line);
                 branch_vec.push_back(counter_obj);
             }
@@ -99,7 +118,10 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
                                           { return remove_chars.find(c) != std::string::npos; }),
                            line.end());
                 // Store the first line number of the .L_x_ branch target
-                branch_target_line_number_map[line] = code_line_number;
+                target_line tl;
+                tl.line_number = code_line_number;
+                tl.pcOffset = get_pcoffset_sass(line);
+                branch_target_line_number_map[line] = tl;
             }
 
             counter_map[kernel_name] = branch_vec;

@@ -7,6 +7,7 @@
 #ifndef PARSER_SASS_RESTRICT_HPP
 #define PARSER_SASS_RESTRICT_HPP
 
+#include "parser_ptx_global_atomics.hpp"
 #include <iostream>
 #include <iomanip>
 #include <unordered_map>
@@ -32,6 +33,7 @@ struct register_used
 {
     std::string register_number;
     int line_number;
+    std::string pcOffset;
     used_flag flag;
     bool read_only_mem_used;
 };
@@ -70,6 +72,18 @@ std::string find_register_reduction(std::string line)
                                     { return remove_chars.find(c) != std::string::npos; }),
                      substr.end());
     }
+
+    return substr;
+}
+
+std::string get_pcoffset_sass(std::string line)
+{
+    //         /*00a0*/                   ISETP.GE.AND P1, PT, R2, c[0x0][0x168], PT ;         -> extract 00a0
+    std::string substr;
+
+    std::istringstream ss(line);
+    std::getline(ss, substr, '*');
+    std::getline(ss, substr, '*');
 
     return substr;
 }
@@ -120,6 +134,7 @@ std::unordered_map<std::string, std::vector<register_used>> restrict_analysis(co
                     register_obj.line_number = code_line_number;
                     register_obj.flag = NOT_USED;
                     register_obj.read_only_mem_used = false;
+                    register_obj.pcOffset = get_pcoffset_sass(line);
                     if ((line.find(".CI") != std::string::npos) || (line.find(".CONSTANT") != std::string::npos))
                     {
                         register_obj.read_only_mem_used = true;

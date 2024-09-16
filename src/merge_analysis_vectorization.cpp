@@ -80,6 +80,7 @@ void merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                         std::cout << "Register " << index_sass.base << " in line number " << index_sass.line_number << " of your code has " << index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0) << " adjacent memory accesses" << std::endl;
                         line_result = {
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
                             {"adjacent_memory_accesses", index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0)}
                         };
@@ -100,6 +101,7 @@ void merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                         }
                         line_result = {
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
                             {"register_load_type", index_sass.reg_load_type}
                         };

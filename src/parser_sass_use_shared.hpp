@@ -56,7 +56,9 @@ struct register_access
     int line_number;
     std::string register_number;
     int register_load_count;
+    std::vector<std::string> register_load_pc_offsets;
     int register_operation_count;
+    std::vector<std::string> register_operation_pc_offsets;
     std::string target_branch;
     std::string pcOffset;
     std::string LDG_pcOffset;      // pcOffset of the load instruction of the register
@@ -205,6 +207,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                 if (register_match != register_vec.end())
                 {
                     register_match->register_load_count++; // if register present, increase the load count for that register
+                    register_match->register_load_pc_offsets.push_back(pcoffset_sass(line));
                 }
                 else // else create a new register object and add to the register_vector
                 {
@@ -233,6 +236,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                     if (register_match != register_vec.end())
                     {
                         register_match->register_operation_count++; // if register is already present in the register_vec, then increase operation count
+                        register_match->register_operation_pc_offsets.push_back(pcoffset_sass(line));
                     }
                 }
             }

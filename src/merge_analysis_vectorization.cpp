@@ -82,6 +82,7 @@ void merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                             {"line_number", index_sass.line_number},
                             {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
+                            {"unroll_pc_offsets", index_sass.unroll_pc_offsets},
                             {"adjacent_memory_accesses", index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0)}
                         };
                     }

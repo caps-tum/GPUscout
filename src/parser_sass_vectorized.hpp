@@ -7,6 +7,7 @@
 #ifndef PARSER_SASS_VECTORIZED_HPP
 #define PARSER_SASS_VECTORIZED_HPP
 
+#include "parser_sass_use_shared.hpp"
 #include <iostream>
 #include <iomanip>
 #include <unordered_map>
@@ -40,6 +41,7 @@ struct register_data
     std::string pcOffset;
     std::string base;
     std::vector<unsigned long> unrolls;
+    std::vector<std::string> unroll_pc_offsets;
     load_type reg_load_type;
 };
 
@@ -174,6 +176,7 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
                     register_obj.pcOffset = get_pcoffset_sass(line);
                     register_obj.base = register_pair.first;
                     register_obj.unrolls.push_back(register_pair.second);
+                    register_obj.unroll_pc_offsets.push_back(pcoffset_sass(line));
                     register_vec.push_back(register_obj);
                 }
                 else // line present
@@ -196,12 +199,14 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
                         register_obj.pcOffset = get_pcoffset_sass(line);
                         register_obj.base = register_pair.first;
                         register_obj.unrolls.push_back(register_pair.second);
+                        register_obj.unroll_pc_offsets.push_back(pcoffset_sass(line));
                         register_vec.push_back(register_obj);
                     }
                     else // line and base present
                     {
                         // Add the unroll part
                         base_match->unrolls.push_back(register_pair.second);
+                        base_match->unroll_pc_offsets.push_back(pcoffset_sass(line));
                     }
                 }
             }

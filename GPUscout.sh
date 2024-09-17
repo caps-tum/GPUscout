@@ -9,12 +9,13 @@ usage() {
     echo "  -e | --executable : Path to the executable (compiled with nvcc)."
     echo "  -c | --cubin : Path to the cubin file (compiled with nvcc, with -cubin). If left empty, the same path as executable and the name cubin-<executable> will be assumed."
     echo "  -a | --args : Arguments for running the binary. e.g. --args=\"64 2 2 temp_64 power_64 output_64.txt\""
-    echo "  -j | --json : Save a JSON-formatted version of the output"
+    echo "  -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)"
+    echo "  -c | --copy_sources : Copy the cuda source files to the output directory, if possible (Needed for the use of GPUscout-GUI)"
     exit 1
 }
 
 # Parse command-line options
-options=$(getopt -o hve:c:a:j -l help,dry_run,verbose,executable:,cubin:,args:,json -- "$@")
+options=$(getopt -o hve:c:a:jc -l help,dry_run,verbose,executable:,cubin:,args:,json,copy_sources -- "$@")
 
 if [ $? -ne 0 ]; then
     echo "Error: Invalid option."
@@ -26,6 +27,7 @@ eval set -- "$options"
 dry_run=false
 verbose=false
 json=false
+copy_sources=false
 executable=""
 cubin=""
 args=""
@@ -56,6 +58,10 @@ while true; do
             ;;
          -j | --json)
             json=true
+            shift
+            ;;
+        -c | --copy_sources)
+            copy_sources=true
             shift
             ;;
         --)
@@ -119,6 +125,7 @@ echo "==== Arguments for the executable file: \"$args\""
 echo "==== Dry-run: $dry_run"
 echo "==== Verbose: $verbose"
 echo "==== JSON Output: $json"
+echo "==== Copy Sources: $copy_sources"
 echo "======================================================================================================"
 
 

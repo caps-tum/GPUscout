@@ -180,42 +180,51 @@ ${json} ${gpuscout_output_dir}
 # Merge all individual JSON files
 
 if [ "$json" = true ]; then
-RES_FILE="${gpuscout_tmp_dir}/result.json"
+    json_output_file="${gpuscout_tmp_dir}/result-${run_prefix}.json"
 
-if [ -f "$RES_FILE" ]; then
-    rm "${RES_FILE}"
-fi
-
-touch "${RES_FILE}"
-echo "{" >> "${RES_FILE}"
-
-first=true
-for file in "${gpuscout_output_dir}"/*.json
-do
-    if [[ "$RES_FILE" != "$file" ]]; then
-        if [ "$first" != true ]; then
-            echo "," >> ${RES_FILE}
-        fi
-        echo "\"$(basename ${file} .json)\":" >> ${RES_FILE}
-        cat ${file} >> ${RES_FILE}
-        first=false
+    if [ -f "$json_output_file" ]; then
+        rm "${json_output_file}"
     fi
-done
 
-echo "," >> ${RES_FILE}
-echo "\"source_files\": {" >> ${RES_FILE}
-rm -rf ${gpuscout_tmp_dir}/source
-mkdir ${gpuscout_tmp_dir}/source
-files=1
-grep .file ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-ptx.txt | sed -E "s/\.file.*[0-9]+\ //g" | sed "s/\"//g" | while read -r line; do
-    cp $line ${gpuscout_tmp_dir}/source/${files}.cu
-    echo "\"${line}\": \"${gpuscout_tmp_dir}/source/${files}.cu\"," >> ${RES_FILE}
-    ((files++))
-done
-sed -i "$ s/.$//" ${RES_FILE}
-echo "}" >> ${RES_FILE}
+    touch "${json_output_file}"
+    echo "{\"analyses\":{" >> "${json_output_file}"
 
-echo "}" >> ${RES_FILE}
+    for file in "${gpuscout_output_dir}"/*.json
+    do
+        if [[ "$json_output_file" != "$file" ]]; then
+            echo "\"$(basename ${file} .json)\":" >> ${json_output_file}
+            cat ${file} >> ${json_output_file}
+            echo "," >> ${json_output_file}
+        fi
+    done
+    sed -i "$ s/.$//" ${json_output_file}
+
+    if [ "$copy_sources" = true ]; then
+        echo "}," >> ${json_output_file}
+        echo "\"source_files\": {" >> ${json_output_file}
+        rm -rf ${gpuscout_tmp_dir}/sources/${run_prefix}
+        mkdir -p ${gpuscout_tmp_dir}/sources/${run_prefix}
+        files=1
+        grep .file ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-ptx.txt | sed -E "s/\.file.*[0-9]+\ //g" | sed "s/\"//g" | while read -r line; do
+            cp $line ${gpuscout_tmp_dir}/sources/${run_prefix}/${files}.cu
+            echo "\"sources/${run_prefix}/${files}.cu\": \"${line}\"," >> ${json_output_file}
+            ((files++))
+        done
+        sed -i "$ s/.$//" ${json_output_file}
+    fi
+    echo "}" >> ${json_output_file}
+
+    echo "}" >> ${json_output_file}
+else
+    if [ "$copy_sources" = true ]; then
+        rm -rf ${gpuscout_tmp_dir}/sources/${run_prefix}
+        mkdir -p ${gpuscout_tmp_dir}/sources/${run_prefix}
+        files=1
+        grep .file ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-ptx.txt | sed -E "s/\.file.*[0-9]+\ //g" | sed "s/\"//g" | while read -r line; do
+            cp $line ${gpuscout_tmp_dir}/sources/${run_prefix}/${files}.cu
+            ((files++))
+        done
+    fi
 fi
 
 echo "======================================================================================================"

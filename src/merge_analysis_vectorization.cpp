@@ -15,9 +15,8 @@
 
 using json = nlohmann::json;
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -34,9 +33,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for using vectorized load
@@ -145,8 +142,7 @@ void merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                                     // Note: Only printing PC stalls if there are unrolls present in the SASS for the register
                                     if (((index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0)) > 0) && (index_sass.reg_load_type == VEC_32))
                                     {
-                                        json stalls = print_stalls_percentage(j);
-                                        line_result["stalls"] = stalls;
+                                        print_stalls_percentage(j);
                                     }
                                     break; // once register matched/found, get out of the loop
                                 }

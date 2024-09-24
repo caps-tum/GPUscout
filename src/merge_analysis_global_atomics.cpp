@@ -12,13 +12,12 @@
 #include "parser_metrics.hpp"
 #include "utilities/json.hpp"
 #include <cstring>
+#include <iostream>
 
 using json = nlohmann::json;
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
-
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -35,10 +34,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-
-    return stalls;
 }
 
 /// @brief Merge analysis (PTX, CUPTI, Metrics) for using shared atomics instead of global atomics
@@ -54,7 +50,6 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
     {
         json kernel_result = {
             {"occurrences", json::array()},
-            {"stalls", json::array()} // TODO: move into occurrences
         };
 
         // Fix for blank kernel name appearing in the analysis_map
@@ -64,6 +59,7 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
         }
 
         std::cout << "--------------------- Global atomics analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
+        kernel_result["global_atomics"] = v_sass.atom_global_count;
         if (v_sass.atom_global_count > 0)
         {
             std::cout << "WARNING  ::  Number of global atomic instructions in the ptx file: " << v_sass.atom_global_count << " detected" << std::endl;
@@ -75,14 +71,15 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                     {
                         if (k_branch == k_sass)
                         {
-                            if ((k.atom_global_line_number.find(i) != k.atom_global_line_number.end()) && (k.target_branch_line_number != 0))
+                            if ((k.atom_global_line_number.find(std::get<0>(i)) != k.atom_global_line_number.end()) && (k.target_branch_line_number != 0))
                             {
-                                std::cout << "Global atomic operation found at line number " << i << " of your source code. ";
+                                std::cout << "Global atomic operation found at line number " << std::get<0>(i) << " of your source code. ";
                                 if (k.inside_for_loop == true)
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
                                 kernel_result["occurrences"].push_back({
-                                    {"line_number", i},
+                                    {"line_number", std::get<0>(i)},
+                                    {"line_number_raw", std::get<1>(i)},
                                     {"in_for_loop", k.inside_for_loop},
                                     {"is_global", true},
                                 });
@@ -97,6 +94,7 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
             std::cout << "INFO  ::  No global atomics detected in the ptx file" << std::endl;
         }
 
+        kernel_result["shared_atomics"] = v_sass.atom_shared_count;
         if (v_sass.atom_shared_count > 0)
         {
             std::cout << "INFO  ::  Number of shared atomic instructions in the ptx file: " << v_sass.atom_shared_count << " recorded." << std::endl;
@@ -108,14 +106,15 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                     {
                         if (k_branch == k_sass)
                         {
-                            if ((k.atom_shared_line_number.find(i) != k.atom_shared_line_number.end()) && (k.target_branch_line_number != 0))
+                            if ((k.atom_shared_line_number.find(std::get<0>(i)) != k.atom_shared_line_number.end()) && (k.target_branch_line_number != 0))
                             {
-                                std::cout << "Shared atomic operation found at line number " << i << " of your source code. ";
+                                std::cout << "Shared atomic operation found at line number " << std::get<0>(i) << " of your source code. ";
                                 if (k.inside_for_loop == true)
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
                                 kernel_result["occurrences"].push_back({
-                                    {"line_number", i},
+                                    {"line_number", std::get<0>(i)},
+                                    {"line_number_raw", std::get<1>(i)},
                                     {"in_for_loop", k.inside_for_loop},
                                     {"is_global", false},
                                 });
@@ -140,14 +139,12 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                 {
                     for (const auto &i : v_sass.atom_global_line_number)
                     {
-                        if (i == j.line_number) // analyze for the same line numbers in the code
+                        if (std::get<0>(i) == j.line_number) // analyze for the same line numbers in the code
                         {
-                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), i) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
+                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), std::get<0>(i)) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
                             {
-                                json stalls = print_stalls_percentage(j);
-                                printed_line_numbers.push_back(i); // stalls for this code line number is already printed.
-                                stalls["line_number"] = i;
-                                kernel_result["stalls"].push_back(stalls);
+                                print_stalls_percentage(j);
+                                printed_line_numbers.push_back(std::get<0>(i)); // stalls for this code line number is already printed.
                             }
 
                             break;
@@ -155,14 +152,12 @@ void merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                     }
                     for (const auto &i : v_sass.atom_shared_line_number)
                     {
-                        if (i == j.line_number) // analyze for the same line numbers in the code
+                        if (std::get<0>(i) == j.line_number) // analyze for the same line numbers in the code
                         {
-                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), i) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
+                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), std::get<0>(i)) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
                             {
-                                json stalls = print_stalls_percentage(j);
-                                printed_line_numbers.push_back(i); // stalls for this code line number is already printed.
-                                stalls["line_number"] = i;
-                                kernel_result["stalls"].push_back(stalls);
+                                print_stalls_percentage(j);
+                                printed_line_numbers.push_back(std::get<0>(i)); // stalls for this code line number is already printed.
                             }
 
                             break;

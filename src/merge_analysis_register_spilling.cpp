@@ -12,12 +12,12 @@
 #include "parser_metrics.hpp"
 #include "parser_liveregisters.hpp"
 #include "utilities/json.hpp"
+#include <ostream>
 
 using json = nlohmann::json;
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -34,10 +34,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-
-    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for register spilling to local memory
@@ -99,6 +96,8 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 {
                     std::cout << "Increased register pressure with " << std::abs(reg_search_it->change_reg_from_last) << " more registers compared to last SASS instruction" << std::endl;
                     line_result["register_pressure_increase"] = std::abs(reg_search_it->change_reg_from_last);
+                } else {
+                    line_result["register_pressure_increase"] = 0;
                 }
             }
 
@@ -113,8 +112,7 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                     {
                         if (index_sass.line_number == j.line_number) // analyze for the same line numbers in the code
                         {
-                            json stalls = print_stalls_percentage(j);
-                            line_result["stalls"] = stalls;
+                            print_stalls_percentage(j);
                             break;
                         }
                     }
@@ -141,10 +139,11 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 std::cout << "For register spilling, check Long Scoreboard stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "For register spilling, check LG Throttle stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active << " % per warp active" << std::endl;
                 auto local_load_store = v_metric.metrics_list.smsp__inst_executed_op_local_ld + v_metric.metrics_list.smsp__inst_executed_op_local_st;
-                int total_SM = 16;
+                int total_SM = 144; // TODO: this should be editable
                 auto estimated_l2_queries_lmem_allSM = 2 * 4 * total_SM * ((1 - (v_metric.metrics_list.l1tex__t_sector_hit_rate / 100)) * local_load_store);
                 auto total_l2_queries = v_metric.metrics_list.lts__t_sectors_op_read + v_metric.metrics_list.lts__t_sectors_op_write + v_metric.metrics_list.lts__t_sectors_op_atom + v_metric.metrics_list.lts__t_sectors_op_red;
                 auto l2_queries_lmem_percent = estimated_l2_queries_lmem_allSM / total_l2_queries;
+                std::cout << estimated_l2_queries_lmem_allSM << " - " << total_l2_queries << std::endl;
                 std::cout << "Percentage of total L2 queries due to LMEM: " << l2_queries_lmem_percent << " %" << std::endl;
                 std::cout << "WARNING   ::  If the above percentage is high, it means the memory traffic between the SMs and L2 cache is mostly due to LMEM (need to contain register spills)" << std::endl;
 

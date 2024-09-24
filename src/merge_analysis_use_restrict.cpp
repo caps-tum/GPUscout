@@ -31,9 +31,8 @@ std::string get_register_from_line(std::string line)
     return last_string;
 }
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -50,9 +49,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for using restricted pointers
@@ -127,8 +124,7 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
 
                                 if (!index_sass.read_only_mem_used)
                                 {
-                                    json stalls = print_stalls_percentage(j);
-                                    line_result["stalls"] = stalls;
+                                    print_stalls_percentage(j);
                                 }
                                 break; // once register matched/found, get out of the loop
                             }

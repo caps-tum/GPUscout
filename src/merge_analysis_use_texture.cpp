@@ -29,9 +29,8 @@ std::string get_register_from_line(std::string line)
     return last_string;
 }
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -48,9 +47,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-    return stalls;
 }
 
 /// @brief Checks if the load addresses are in spatial locality
@@ -151,8 +148,7 @@ void merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
                         {
                             if ((index_sass.line_number == j.line_number) && (get_register_from_line(j.sass_instruction) == index_sass.write_to_register_number)) // analyze for the same line numbers in the code and same registers in SASS
                             {
-                                json stalls = print_stalls_percentage(j);
-                                line_result["stalls"] = stalls;
+                                print_stalls_percentage(j);
                                 break;
                             }
                         }

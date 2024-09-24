@@ -63,9 +63,10 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "WARNING   ::  There are " << v_sass.F2F_count << " F2F conversions found at line numbers: ";
             for (auto i : v_sass.F2F_line)
             {
-                std::cout << i << ", ";
+                std::cout << std::get<0>(i) << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", i},
+                    {"line_number", std::get<0>(i)},
+                    {"pc_offset", std::get<1>(i)},
                     {"type", "F2F"}
                 });
             }
@@ -81,9 +82,10 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "WARNING   ::  There are " << v_sass.I2F_count << " I2F conversions found at line numbers: ";
             for (auto i : v_sass.I2F_line)
             {
-                std::cout << i << ", ";
+                std::cout << std::get<0>(i) << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", i},
+                    {"line_number", std::get<0>(i)},
+                    {"pc_offset", std::get<1>(i)},
                     {"type", "I2F"}
                 });
             }
@@ -99,9 +101,10 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "WARNING   ::  There are " << v_sass.F2I_count << " F2I conversions found at line numbers: ";
             for (auto i : v_sass.F2I_line)
             {
-                std::cout << i << ", ";
+                std::cout << std::get<0>(i) << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", i},
+                    {"line_number", std::get<0>(i)},
+                    {"pc_offset", std::get<1>(i)},
                     {"type", "F2I"}
                 });
             }

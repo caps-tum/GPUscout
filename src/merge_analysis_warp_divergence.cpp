@@ -14,9 +14,8 @@
 
 using json = nlohmann::json;
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -34,9 +33,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     {
         // std::cout << "Stall detected: " << k << ", accounting for: " << (100.0*v)/total_samples<< " % of stalls for this SASS" << std::endl;
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for detecting conditional branching and warp divergence
@@ -73,7 +70,6 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                    {"pc_offset", index_sass.pcOffset},
                    {"target_branch", index_sass.target_branch},
                    {"target_branch_start_line_number", branch_target_map[index_sass.target_branch].line_number},
-                   {"target_branch_start_pc_offset", branch_target_map[index_sass.target_branch].pcOffset}
                 };
 
                 // Map kernel with the PC Stall map
@@ -85,14 +81,15 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                         {
                             if ((index_sass.line_number == j.line_number)) // analyze for the same line numbers in the code
                             {
-                                json stalls = print_stalls_percentage(j);
-                                line_result["stalls"] = stalls;
+                                print_stalls_percentage(j);
                                 break; // once register matched/found, get out of the loop
                             }
                         }
                     }
                 }
             }
+            if (!line_result.is_null())
+                kernel_result["occurrences"].push_back(line_result);
         }
 
         // Map kernel with metrics collected

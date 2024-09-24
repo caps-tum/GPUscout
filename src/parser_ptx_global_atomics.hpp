@@ -54,8 +54,8 @@ struct atomic_counter
 {
     int atom_global_count;
     int atom_shared_count;
-    std::set<int> atom_global_line_number;
-    std::set<int> atom_shared_line_number;
+    std::set<std::tuple<int, int>> atom_global_line_number;
+    std::set<std::tuple<int, int>> atom_shared_line_number;
 };
 
 int get_line_number_from_ptx(std::string line)
@@ -110,12 +110,14 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     std::unordered_map<std::string, int> branch_target_line_number_map;
 
     int code_line_number = 0;
+    int code_line_number_raw = 0;
     int branch_code_line_number = 0;
 
     if (file.is_open())
     {
         while (std::getline(file, line))
         {
+            code_line_number_raw++;
             if (line.find(".visible .entry ") != std::string::npos) // denotes start of the kernel
             {
                 counter_obj.atom_global_count = 0;
@@ -154,7 +156,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
             if (line.find("atom.global.add") != std::string::npos)
             {
                 counter_obj.atom_global_count++;
-                counter_obj.atom_global_line_number.insert(code_line_number);
+                counter_obj.atom_global_line_number.insert(std::make_tuple(code_line_number, code_line_number_raw));
 
                 std::vector<branch_counter>::iterator last_branch_match = std::find_if(branch_vec.begin(), branch_vec.end(), [&](const branch_counter &i)
                                                                                        { return i.target_branch == current_target_branch; });
@@ -166,7 +168,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
             if (line.find("atom.shared.add") != std::string::npos)
             {
                 counter_obj.atom_shared_count++;
-                counter_obj.atom_shared_line_number.insert(code_line_number);
+                counter_obj.atom_shared_line_number.insert(std::make_tuple(code_line_number, code_line_number_raw));
 
                 std::vector<branch_counter>::iterator last_branch_match = std::find_if(branch_vec.begin(), branch_vec.end(), [&](const branch_counter &i)
                                                                                        { return i.target_branch == current_target_branch; });

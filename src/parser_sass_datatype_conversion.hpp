@@ -20,6 +20,18 @@
 #include <algorithm>
 #include <memory>
 
+std::string get_pcoffset_sass(std::string line)
+{
+    //         /*00a0*/                   ISETP.GE.AND P1, PT, R2, c[0x0][0x168], PT ;         -> extract 00a0
+    std::string substr;
+
+    std::istringstream ss(line);
+    std::getline(ss, substr, '*');
+    std::getline(ss, substr, '*');
+
+    return substr;
+}
+
 /// @brief Datatype conversion type and count information
 struct datatype_conversions_counter
 {
@@ -27,9 +39,9 @@ struct datatype_conversions_counter
     int F2I_count;
     int F2F_count;
 
-    std::set<int> I2F_line;
-    std::set<int> F2I_line;
-    std::set<int> F2F_line;
+    std::set<std::pair<int, std::string>> I2F_line;
+    std::set<std::pair<int, std::string>> F2I_line;
+    std::set<std::pair<int, std::string>> F2F_line;
 };
 
 /// @brief Detects type of conversion from one dataype to another
@@ -73,17 +85,17 @@ std::unordered_map<std::string, datatype_conversions_counter> datatype_conversio
             if (line.find("I2F") != std::string::npos)
             {
                 counter_obj.I2F_count++;
-                counter_obj.I2F_line.insert(code_line_number); // save the last stored line number
+                counter_obj.I2F_line.insert(std::make_pair(code_line_number, get_pcoffset_sass(line))); // save the last stored line number
             }
             if (line.find("F2I") != std::string::npos)
             {
                 counter_obj.F2I_count++;
-                counter_obj.F2I_line.insert(code_line_number);
+                counter_obj.F2I_line.insert(std::make_pair(code_line_number, get_pcoffset_sass(line))); // save the last stored line number
             }
             if (line.find("F2F") != std::string::npos)
             {
                 counter_obj.F2F_count++;
-                counter_obj.F2F_line.insert(code_line_number);
+                counter_obj.F2F_line.insert(std::make_pair(code_line_number, get_pcoffset_sass(line))); // save the last stored line number
             }
 
             counter_map[kernel_name] = counter_obj;

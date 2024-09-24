@@ -29,9 +29,8 @@ std::string get_register_from_line(std::string line)
     return last_string;
 }
 
-json print_stalls_percentage(const pc_issue_samples &index)
+void print_stalls_percentage(const pc_issue_samples &index)
 {
-    json stalls;
     // Printing the stall with percentage of samples
     // std::cout << "Underlying SASS Instruction: " << index.sass_instruction << " corresponding to your code line number: " << index.line_number << std::endl;
     auto total_samples = 0;
@@ -48,9 +47,7 @@ json print_stalls_percentage(const pc_issue_samples &index)
     for (const auto &[k, v] : map_stall_name_count)
     {
         std::cout << k << " (" << (100.0 * v) / total_samples << " %)" << std::endl;
-        stalls[k] = (100.0  * v / total_samples);
     }
-    return stalls;
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for using shared memory instead of global memory
@@ -110,11 +107,11 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                             {"register", index_sass.register_number},
                             {"uses_shared_memory", true},
                             {"uses_async_global_to_shared_memory_copy", false},
+                            {"instruction_count_to_shared_mem_store", index_sass.count_to_shared_mem_store}
                         };
                         if (index_sass.count_to_shared_mem_store > 0)
                         {
                             std::cout << "Data loaded from global memory is stored to shared memory after " << index_sass.count_to_shared_mem_store << " instructions. Asynchronous global to shared memcopy might help for SM > 80" << std::endl;
-                            line_result["instruction_count_to_shared_mem_store"] = index_sass.count_to_shared_mem_store;
                             line_result["lgd_pc_offset"] = index_sass.LDG_pcOffset;
                         }
                     }
@@ -150,9 +147,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                                         {
                                             if ((index_sass.line_number == j_pc.line_number) && (get_register_from_line(j_pc.sass_instruction) == index_sass.register_number))
                                             {
-                                                json stalls = print_stalls_percentage(j_pc);
-                                                stalls["line_number"] = index_sass.line_number;
-                                                kernel_result["stalls"].push_back(stalls);
+                                                print_stalls_percentage(j_pc);
                                                 break;
                                             }
                                         }

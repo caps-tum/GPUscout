@@ -30,7 +30,6 @@ struct branch_counter
 
 struct target_line {
     int line_number;
-    std::string pcOffset;
 };
 
 std::string find_branch(const std::string &line)
@@ -120,7 +119,6 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
                 // Store the first line number of the .L_x_ branch target
                 target_line tl;
                 tl.line_number = code_line_number;
-                tl.pcOffset = get_pcoffset_sass(line);
                 branch_target_line_number_map[line] = tl;
             }
 

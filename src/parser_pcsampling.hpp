@@ -23,6 +23,7 @@
 /// @brief Kind of bottleneck analysis performed
 enum analysis_kind
 {
+    ALL,
     REGISTER_SPILLING,
     VECTORIZED_LOAD,
     ATOMICS_GLOBAL,
@@ -39,6 +40,10 @@ enum analysis_kind
 /// @return true if the line contains the relevant SASS instruction, else false
 bool sampling_type(analysis_kind analysis_kind, std::string line)
 {
+    if (analysis_kind == ALL)
+    {
+        return line.find("/*") != std::string::npos && line.find("*/") != std::string::npos;
+    }
     if (analysis_kind == REGISTER_SPILLING)
     {
         return (line.find("STL ") != std::string::npos) || (line.find("LDL ") != std::string::npos);

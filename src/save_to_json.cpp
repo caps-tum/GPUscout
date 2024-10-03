@@ -26,7 +26,7 @@ int main(int argc, char **argv)
         {"stalls", json::object()},
         {"source_files", json::object()}
     };
-    
+
     // Add individual analysis results to result file
     for (const auto& file : std::filesystem::directory_iterator(json_files_dir)) {
         if (file.is_directory())
@@ -34,6 +34,7 @@ int main(int argc, char **argv)
         std::string path = file.path();
         std::string filename = path.substr(path.find_last_of("/") + 1);
         std::string extension = filename.substr(filename.find_last_of(".") + 1);
+        filename = filename.substr(0, filename.length() - 5);
 
         if (extension.compare("json") != 0)
             continue;
@@ -47,7 +48,7 @@ int main(int argc, char **argv)
     std::unordered_map<std::string, std::vector<pc_issue_samples>> stall_map = get_warp_stalls(pc_samples_file, sass_file, analysis_kind::ALL);
     for (auto [k_pc, v_pc] : stall_map) {
         result["stalls"][k_pc] = json::object();
-        
+
         for (auto sample : v_pc) {
             result["stalls"][k_pc][std::to_string(sample.pc_offset)] = {
                 {"line_number", sample.line_number},

@@ -160,7 +160,7 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
     if (save_as_json)
     {
         std::ofstream json_file;
-        json_file.open(json_output_dir + "/use_restricted.json");
+        json_file.open(json_output_dir + "/use_restrict.json");
         json_file << result.dump(4);
         json_file.close();
     }

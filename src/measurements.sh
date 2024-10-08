@@ -15,6 +15,7 @@ if [ "$dry_run" = false ]; then
 
     # Extract all the metrics in one pass
     ncu -f --csv --log-file ${run_prefix}_metrics_list --print-units base --print-kernel-base mangled --metrics \
+smsp__warps_active.sum,\
 smsp__warp_issue_stalled_barrier_per_warp_active.pct,\
 smsp__warp_issue_stalled_membar_per_warp_active.pct,\
 smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct,\
@@ -180,6 +181,9 @@ ${json} ${gpuscout_output_dir}
 # Merge all individual JSON files
 
 if [ "$json" = true ]; then
+
+echo "======================================================================================================"
+echo "Generating JSON output . . . . . . . . . . . . . . . "
 
 ./save_to_json \
 ${gpuscout_output_dir} \

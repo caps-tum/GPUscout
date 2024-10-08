@@ -27,6 +27,7 @@ using json = nlohmann::json;
 /// @brief Metric data to collect from Nsight Compute CLI
 struct cuda_metrics
 {
+    double smsp__warps_active;
     double smsp__warp_issue_stalled_barrier_per_warp_active;
     double smsp__warp_issue_stalled_membar_per_warp_active;
     double smsp__warp_issue_stalled_short_scoreboard_per_warp_active;
@@ -151,6 +152,10 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
         // std::cout << i[9] << std::endl;
 
         // Note: loosing the decimal part of the value since in German it is denoted as comma and we are using comma as delimiter
+        if (i[25] == "smsp__warps_activec.sum")
+        {
+            metric_obj.smsp__warps_active = std::stod(i[29]);
+        }
         if (i[25] == "smsp__warp_issue_stalled_barrier_per_warp_active.pct")
         {
             metric_obj.smsp__warp_issue_stalled_barrier_per_warp_active = std::stod(i[29]);

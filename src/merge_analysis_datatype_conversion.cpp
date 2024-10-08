@@ -126,7 +126,8 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 kernel_result["metrics"] = {
                     {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
                     {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
-                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active}
+                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active},
+                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active}
                 };
             }
         }

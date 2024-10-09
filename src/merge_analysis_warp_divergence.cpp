@@ -41,7 +41,7 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param branch_target_map Includes target branch information
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, target_line> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
+json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, int> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
 {
     json result;
 
@@ -62,14 +62,14 @@ json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
         {
             json line_result;
 
-            if (index_sass.line_number != branch_target_map[index_sass.target_branch].line_number) // branches that has target branch in the same line numbers are not considered as conditional branching
+            if (index_sass.line_number != branch_target_map[index_sass.target_branch]) // branches that has target branch in the same line numbers are not considered as conditional branching
             {
-                std::cout << "Conditional branching detected in line number " << index_sass.line_number << " of your code, with target branch: " << index_sass.target_branch << " (target branch starts at line number: " << branch_target_map[index_sass.target_branch].line_number << ")" << std::endl;
+                std::cout << "Conditional branching detected in line number " << index_sass.line_number << " of your code, with target branch: " << index_sass.target_branch << " (target branch starts at line number: " << branch_target_map[index_sass.target_branch] << ")" << std::endl;
                 line_result = {
                    {"line_number", index_sass.line_number} ,
                    {"pc_offset", index_sass.pcOffset},
                    {"target_branch", index_sass.target_branch},
-                   {"target_branch_start_line_number", branch_target_map[index_sass.target_branch].line_number},
+                   {"target_branch_start_line_number", branch_target_map[index_sass.target_branch]},
                 };
 
                 // Map kernel with the PC Stall map
@@ -122,7 +122,7 @@ int main(int argc, char **argv)
     std::string filename_hpctoolkit_sass = argv[1];
     auto divergence_tuple = branches_detection(filename_hpctoolkit_sass);
     std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map = std::get<0>(divergence_tuple);
-    std::unordered_map<std::string, target_line> branch_target_map = std::get<1>(divergence_tuple);
+    std::unordered_map<std::string, int> branch_target_map = std::get<1>(divergence_tuple);
 
     std::string filename_sampling = argv[4];
     std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map = get_warp_stalls(filename_sampling, filename_hpctoolkit_sass, analysis_kind::WARP_DIVERGENCE);

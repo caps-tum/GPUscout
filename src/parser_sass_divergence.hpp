@@ -68,7 +68,7 @@ std::string get_pcoffset_sass(std::string line)
 /// @brief Detects conditional branching
 /// @param filename Disassembled SASS file
 /// @return Tuple of two maps, first map includes branch information and second map includes target branch line number
-std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::unordered_map<std::string, target_line>> branches_detection(const std::string &filename)
+std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::unordered_map<std::string, int>> branches_detection(const std::string &filename)
 {
     std::string line;
     std::fstream file(filename, std::ios::in);
@@ -79,7 +79,7 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
     std::string kernel_name;
     int code_line_number;
 
-    std::unordered_map<std::string, target_line> branch_target_line_number_map;
+    std::unordered_map<std::string, int> branch_target_line_number_map;
 
     if (file.is_open())
     {
@@ -117,9 +117,7 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
                                           { return remove_chars.find(c) != std::string::npos; }),
                            line.end());
                 // Store the first line number of the .L_x_ branch target
-                target_line tl;
-                tl.line_number = code_line_number;
-                branch_target_line_number_map[line] = tl;
+                branch_target_line_number_map[line] = code_line_number;
             }
 
             counter_map[kernel_name] = branch_vec;

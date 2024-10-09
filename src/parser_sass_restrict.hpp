@@ -7,7 +7,6 @@
 #ifndef PARSER_SASS_RESTRICT_HPP
 #define PARSER_SASS_RESTRICT_HPP
 
-#include "parser_ptx_global_atomics.hpp"
 #include <iostream>
 #include <iomanip>
 #include <unordered_map>

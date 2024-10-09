@@ -6,4 +6,3 @@ build/*
 inst-dir/*
 install/*
 tmp-gpuscout/*
-tmp-scripts/

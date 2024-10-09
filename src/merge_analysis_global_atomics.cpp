@@ -3,7 +3,7 @@
  * PTX analysis - global atomics (instruction atom.global.add/atom.shared.add) -> output code line number, number of atomics and if the atomic is present in for-loop
  * PC Sampling analysis - pc stalls (instruction RED.E.ADD/ATOMS.ADD) -> output stall reasons and percentage of stall
  * Metric analysis - get metrics for entire kernel -> LG Throttle, Long Scoreboard and MIO Throttle
- *
+ * 
  * @author Soumya Sen
  */
 

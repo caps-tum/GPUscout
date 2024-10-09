@@ -63,10 +63,9 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "WARNING   ::  There are " << v_sass.F2F_count << " F2F conversions found at line numbers: ";
             for (auto i : v_sass.F2F_line)
             {
-                std::cout << std::get<0>(i) << ", ";
+                std::cout << i << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", std::get<0>(i)},
-                    {"pc_offset", std::get<1>(i)},
+                    {"line_number", i},
                     {"type", "F2F"}
                 });
             }
@@ -82,10 +81,10 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "WARNING   ::  There are " << v_sass.I2F_count << " I2F conversions found at line numbers: ";
             for (auto i : v_sass.I2F_line)
             {
-                std::cout << std::get<0>(i) << ", ";
+                std::cout << i << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", std::get<0>(i)},
-                    {"pc_offset", std::get<1>(i)},
+                    {"line_number", i},
+                    {"pc_offset", i},
                     {"type", "I2F"}
                 });
             }
@@ -101,10 +100,10 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "WARNING   ::  There are " << v_sass.F2I_count << " F2I conversions found at line numbers: ";
             for (auto i : v_sass.F2I_line)
             {
-                std::cout << std::get<0>(i) << ", ";
+                std::cout << i << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", std::get<0>(i)},
-                    {"pc_offset", std::get<1>(i)},
+                    {"line_number", i},
+                    {"pc_offset", i},
                     {"type", "F2I"}
                 });
             }
@@ -126,8 +125,7 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 kernel_result["metrics"] = {
                     {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
                     {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
-                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active},
-                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active}
+                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active}
                 };
             }
         }

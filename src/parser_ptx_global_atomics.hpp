@@ -54,8 +54,8 @@ struct atomic_counter
 {
     int atom_global_count;
     int atom_shared_count;
-    std::set<std::tuple<int, int>> atom_global_line_number;
-    std::set<std::tuple<int, int>> atom_shared_line_number;
+    std::set<int> atom_global_line_number;
+    std::set<int> atom_shared_line_number;
 };
 
 int get_line_number_from_ptx(std::string line)
@@ -90,8 +90,7 @@ int get_branch_line_number_from_ptx(std::string line)
 
 /// @brief Detects global and shared atomics by parsing PTX file
 /// @param filename Decoded PTX file
-/// @return Tuple of two maps, first map includes global and shared atomic count
-/// and second map includes target branch information
+/// @return Tuple of two maps, first map includes global and shared atomic count and second map includes target branch information
 std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<std::string, std::vector<branch_counter>>> global_mem_atomics_analysis(const std::string &filename) {
 
     std::string line;
@@ -110,7 +109,6 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     std::unordered_map<std::string, int> branch_target_line_number_map;
 
     int code_line_number = 0;
-    int code_line_number_raw = 0;
     int branch_code_line_number = 0;
 
     if (file.is_open())
@@ -139,14 +137,9 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
 
                 // https://cplusplus.com/reference/string/string/erase/     - erase part of a string
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
-                line.erase(line.end() - 1, line.end()); // erase the last 1 character of the name of the kernel
+                line.erase(line.end() - 1, line.end());      // erase the last 1 character of the name of the kernel
                 kernel_name = line;
                 // std::cout << kernel_name << std::endl;
-            }
-
-            if (line.find(".loc") == std::string::npos && line.find(".visible") == std::string::npos && line.find(".file") == std::string::npos && line.substr(0, 4) != "$L__")
-            {
-                code_line_number_raw++;
             }
 
             if ((line.find(".loc") != std::string::npos) && (line.find("inlined_at") != std::string::npos))
@@ -161,7 +154,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
             if (line.find("atom.global.add") != std::string::npos)
             {
                 counter_obj.atom_global_count++;
-                counter_obj.atom_global_line_number.insert(std::make_tuple(code_line_number, code_line_number_raw));
+                counter_obj.atom_global_line_number.insert(code_line_number);
 
                 std::vector<branch_counter>::iterator last_branch_match = std::find_if(branch_vec.begin(), branch_vec.end(), [&](const branch_counter &i)
                                                                                        { return i.target_branch == current_target_branch; });
@@ -173,7 +166,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
             if (line.find("atom.shared.add") != std::string::npos)
             {
                 counter_obj.atom_shared_count++;
-                counter_obj.atom_shared_line_number.insert(std::make_tuple(code_line_number, code_line_number_raw));
+                counter_obj.atom_shared_line_number.insert(code_line_number);
 
                 std::vector<branch_counter>::iterator last_branch_match = std::find_if(branch_vec.begin(), branch_vec.end(), [&](const branch_counter &i)
                                                                                        { return i.target_branch == current_target_branch; });
@@ -234,11 +227,9 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     else
         std::cout << "Could not open the file: " << filename << std::endl;
 
-    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " <<
-    // counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl; std::cout <<
-    // "Kernel name: _Z4HistPiiPfi, " << "Shared atomics: " <<
-    // counter_map["_Z4HistPiiPfi"].atom_shared_count << std::endl; for (const
-    // auto& i : counter_map["_Z4HistPiiPfi"].atom_global_line_number)
+    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " << counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl; std::cout <<
+    // "Kernel name: _Z4HistPiiPfi, " << "Shared atomics: " << counter_map["_Z4HistPiiPfi"].atom_shared_count << std::endl; for (const
+    // for (const auto& i : counter_map["_Z4HistPiiPfi"].atom_global_line_number)
     // {
     //     std::cout << "Global atomic line number: " << i << std::endl;
     // }

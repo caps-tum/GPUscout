@@ -24,7 +24,6 @@
 struct branch_counter
 {
     int line_number;
-    std::string pcOffset;
     std::string target_branch;
 };
 
@@ -45,18 +44,6 @@ std::string find_branch(const std::string &line)
     substr.erase(std::remove_if(substr.begin(), substr.end(), [&remove_chars](const char &c)
                                 { return remove_chars.find(c) != std::string::npos; }),
                  substr.end());
-
-    return substr;
-}
-
-std::string get_pcoffset_sass(std::string line)
-{
-    //         /*00a0*/                   ISETP.GE.AND P1, PT, R2, c[0x0][0x168], PT ;         -> extract 00a0
-    std::string substr;
-
-    std::istringstream ss(line);
-    std::getline(ss, substr, '*');
-    std::getline(ss, substr, '*');
 
     return substr;
 }
@@ -99,7 +86,6 @@ std::tuple<std::unordered_map<std::string, std::vector<branch_counter>>, std::un
             if (line.find(" BRA ") != std::string::npos)
             {
                 counter_obj.line_number = code_line_number;
-                counter_obj.pcOffset = get_pcoffset_sass(line);
                 counter_obj.target_branch = find_branch(line);
                 branch_vec.push_back(counter_obj);
             }

@@ -71,15 +71,14 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                     {
                         if (k_branch == k_sass)
                         {
-                            if ((k.atom_global_line_number.find(std::get<0>(i)) != k.atom_global_line_number.end()) && (k.target_branch_line_number != 0))
+                            if ((k.atom_global_line_number.find(i) != k.atom_global_line_number.end()) && (k.target_branch_line_number != 0))
                             {
-                                std::cout << "Global atomic operation found at line number " << std::get<0>(i) << " of your source code. ";
+                                std::cout << "Global atomic operation found at line number " << i << " of your source code. ";
                                 if (k.inside_for_loop == true)
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
                                 kernel_result["occurrences"].push_back({
-                                    {"line_number", std::get<0>(i)},
-                                    {"line_number_raw", std::get<1>(i)},
+                                    {"line_number", i},
                                     {"in_for_loop", k.inside_for_loop},
                                     {"is_global", true},
                                 });
@@ -106,15 +105,14 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                     {
                         if (k_branch == k_sass)
                         {
-                            if ((k.atom_shared_line_number.find(std::get<0>(i)) != k.atom_shared_line_number.end()) && (k.target_branch_line_number != 0))
+                            if ((k.atom_shared_line_number.find(i) != k.atom_shared_line_number.end()) && (k.target_branch_line_number != 0))
                             {
-                                std::cout << "Shared atomic operation found at line number " << std::get<0>(i) << " of your source code. ";
+                                std::cout << "Shared atomic operation found at line number " << i << " of your source code. ";
                                 if (k.inside_for_loop == true)
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
                                 kernel_result["occurrences"].push_back({
-                                    {"line_number", std::get<0>(i)},
-                                    {"line_number_raw", std::get<1>(i)},
+                                    {"line_number", i},
                                     {"in_for_loop", k.inside_for_loop},
                                     {"is_global", false},
                                 });
@@ -139,12 +137,12 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                 {
                     for (const auto &i : v_sass.atom_global_line_number)
                     {
-                        if (std::get<0>(i) == j.line_number) // analyze for the same line numbers in the code
+                        if (i == j.line_number) // analyze for the same line numbers in the code
                         {
-                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), std::get<0>(i)) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
+                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), i) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
                             {
                                 print_stalls_percentage(j);
-                                printed_line_numbers.push_back(std::get<0>(i)); // stalls for this code line number is already printed.
+                                printed_line_numbers.push_back(i); // stalls for this code line number is already printed.
                             }
 
                             break;
@@ -152,12 +150,12 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                     }
                     for (const auto &i : v_sass.atom_shared_line_number)
                     {
-                        if (std::get<0>(i) == j.line_number) // analyze for the same line numbers in the code
+                        if (i == j.line_number) // analyze for the same line numbers in the code
                         {
-                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), std::get<0>(i)) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
+                            if (std::find(printed_line_numbers.begin(), printed_line_numbers.end(), i) == printed_line_numbers.end()) // Can skip the stalls for the same code line number but different SASS lines
                             {
                                 print_stalls_percentage(j);
-                                printed_line_numbers.push_back(std::get<0>(i)); // stalls for this code line number is already printed.
+                                printed_line_numbers.push_back(i); // stalls for this code line number is already printed.
                             }
 
                             break;

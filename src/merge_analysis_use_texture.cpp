@@ -133,7 +133,6 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
                 (multiple_reads_register_flag) ? std::cout << "Spatial locality found for the register data" << std::endl : std::cout << "No spatial locality found for the register data" << std::endl;
                 line_result = {
                     {"line_number", index_sass.line_number},
-                    {"pc_offset", index_sass.pcOffset},
                     {"written_register", index_sass.write_to_register_number},
                     {"read_register", index_sass.load_from_register},
                     {"spatial_locality", multiple_reads_register_flag}

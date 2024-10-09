@@ -77,8 +77,7 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                     std::cout << "The previous compute instruction of register: " << index_sass.register_number << " before spilling was " << last_reg.last_instruction << " at line number " << last_reg.last_line_number << " of your code" << std::endl;
                     line_result["previous_compute_instruction"] = {
                         {"instruction", last_reg.last_instruction},
-                        {"line_number", last_reg.last_line_number},
-                        {"pc_offset", last_reg.last_pcOffset}
+                        {"line_number", last_reg.last_line_number}
                     };
                 }
             }

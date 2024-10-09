@@ -45,7 +45,6 @@ struct track_register_instruction
 {
     std::string register_number;
     std::string last_instruction;
-    std::string last_pcOffset;
     int last_line_number;
     bool flag_reached;
 };
@@ -164,7 +163,6 @@ std::tuple<std::unordered_map<std::string, std::vector<local_memory_counter>>, s
 
                 last_reg_obj.register_number = "";
                 last_reg_obj.last_instruction = "";
-                last_reg_obj.last_pcOffset = "";
                 last_reg_obj.last_line_number = 0;
                 last_reg_obj.flag_reached = false;
 
@@ -220,7 +218,6 @@ std::tuple<std::unordered_map<std::string, std::vector<local_memory_counter>>, s
                     {
                         last_reg_match->last_line_number = code_line_number;
                         last_reg_match->last_instruction = get_instruction_from_line(line);
-                        last_reg_match->last_pcOffset = get_pcoffset_sass(line);
                     }
                 }
                 else
@@ -228,7 +225,6 @@ std::tuple<std::unordered_map<std::string, std::vector<local_memory_counter>>, s
                     last_reg_obj.register_number = current_register;
                     last_reg_obj.last_line_number = code_line_number;
                     last_reg_obj.last_instruction = get_instruction_from_line(line);
-                    last_reg_obj.last_pcOffset = get_pcoffset_sass(line);
                     last_reg_obj.flag_reached = false;
                     last_reg_vec.push_back(last_reg_obj);
                 }

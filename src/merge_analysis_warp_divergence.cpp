@@ -67,7 +67,6 @@ json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                 std::cout << "Conditional branching detected in line number " << index_sass.line_number << " of your code, with target branch: " << index_sass.target_branch << " (target branch starts at line number: " << branch_target_map[index_sass.target_branch] << ")" << std::endl;
                 line_result = {
                    {"line_number", index_sass.line_number} ,
-                   {"pc_offset", index_sass.pcOffset},
                    {"target_branch", index_sass.target_branch},
                    {"target_branch_start_line_number", branch_target_map[index_sass.target_branch]},
                 };

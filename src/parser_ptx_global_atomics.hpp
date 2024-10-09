@@ -91,7 +91,8 @@ int get_branch_line_number_from_ptx(std::string line)
 /// @brief Detects global and shared atomics by parsing PTX file
 /// @param filename Decoded PTX file
 /// @return Tuple of two maps, first map includes global and shared atomic count and second map includes target branch information
-std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<std::string, std::vector<branch_counter>>> global_mem_atomics_analysis(const std::string &filename) {
+std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<std::string, std::vector<branch_counter>>> global_mem_atomics_analysis(const std::string &filename)
+{
 
     std::string line;
     std::fstream file(filename, std::ios::in);
@@ -122,7 +123,6 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
                 counter_obj.atom_global_line_number.clear();
                 counter_obj.atom_shared_line_number.clear();
                 code_line_number = 0;
-                code_line_number_raw = 0;
                 branch_code_line_number = 0;
 
                 branch_vec.clear();
@@ -227,8 +227,8 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     else
         std::cout << "Could not open the file: " << filename << std::endl;
 
-    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " << counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl; std::cout <<
-    // "Kernel name: _Z4HistPiiPfi, " << "Shared atomics: " << counter_map["_Z4HistPiiPfi"].atom_shared_count << std::endl; for (const
+    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " << counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl;
+    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Shared atomics: " << counter_map["_Z4HistPiiPfi"].atom_shared_count << std::endl; for (const
     // for (const auto& i : counter_map["_Z4HistPiiPfi"].atom_global_line_number)
     // {
     //     std::cout << "Global atomic line number: " << i << std::endl;

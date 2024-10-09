@@ -28,10 +28,6 @@ struct branch_counter
     std::string target_branch;
 };
 
-struct target_line {
-    int line_number;
-};
-
 std::string find_branch(const std::string &line)
 {
     //         /*0100*/              @!P0 BRA `(.L_x_1) ;   -> extract .L_x_1

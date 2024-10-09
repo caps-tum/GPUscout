@@ -36,7 +36,8 @@ std::string find_target_branch(std::string line)
     std::string substr, last_string;
 
     std::istringstream ss(line);
-    while (std::getline(ss, substr, ' ')) {
+    while (std::getline(ss, substr, ' '))
+    {
         last_string = substr;
     }
 
@@ -45,7 +46,7 @@ std::string find_target_branch(std::string line)
                                 { return remove_chars.find(c) != std::string::npos; }),
                  substr.end());
 
-      return substr;
+    return substr;
 }
 
 /// @brief Number of atomic instructions and corresponding code line number information
@@ -163,8 +164,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
                 counter_obj.atom_global_line_number.insert(std::make_tuple(code_line_number, code_line_number_raw));
 
                 std::vector<branch_counter>::iterator last_branch_match = std::find_if(branch_vec.begin(), branch_vec.end(), [&](const branch_counter &i)
-                                                                                       { return i.target_branch == current_target_branch;
-                    });
+                                                                                       { return i.target_branch == current_target_branch; });
                 if (last_branch_match != branch_vec.end())
                 {
                     last_branch_match->atom_global_line_number.insert(code_line_number);
@@ -176,8 +176,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
                 counter_obj.atom_shared_line_number.insert(std::make_tuple(code_line_number, code_line_number_raw));
 
                 std::vector<branch_counter>::iterator last_branch_match = std::find_if(branch_vec.begin(), branch_vec.end(), [&](const branch_counter &i)
-                                                                                       { return i.target_branch == current_target_branch;
-                    });
+                                                                                       { return i.target_branch == current_target_branch; });
                 if (last_branch_match != branch_vec.end())
                 {
                     last_branch_match->atom_shared_line_number.insert(code_line_number);
@@ -231,8 +230,9 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
 
             counter_map[kernel_name] = counter_obj;
         }
-    } else
-    std::cout << "Could not open the file: " << filename << std::endl;
+    }
+    else
+        std::cout << "Could not open the file: " << filename << std::endl;
 
     // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " <<
     // counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl; std::cout <<
@@ -247,12 +247,10 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     //     std::cout << "Shared atomic line number: " << i << std::endl;
     // }
 
-    // for (const auto& k :
-    // branch_map["_Z28histogram_gmem_atomics_spillPK7IN_TYPEiiPj"])
+    // for (const auto& k : branch_map["_Z28histogram_gmem_atomics_spillPK7IN_TYPEiiPj"])
     // {
     //     for (const auto& l : k.atom_global_line_number)
-    //     std::cout << l << "," << k.target_branch_line_number << "," <<
-    //     k.inside_for_loop << std::endl;
+    //     std::cout << l << "," << k.target_branch_line_number << "," << k.inside_for_loop << std::endl;
     // }
 
     return std::make_tuple(counter_map, branch_map);

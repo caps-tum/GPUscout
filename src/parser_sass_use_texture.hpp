@@ -202,7 +202,6 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                     register_obj.flag = NOT_USED;
 
                     // For a given register, If unroll distance is 4 for 32 bits, 8 for 64 bits and 16 for 128 bits => spatial locality of the data loaded
-                    // TODO: check if unrolls should not be reset before!!!
                     register_obj.load_from_register = read_register_pair(line).first;
                     register_obj.load_from_register_unrolls.insert(read_register_pair(line).second);
 

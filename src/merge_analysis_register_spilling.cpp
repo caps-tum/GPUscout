@@ -139,7 +139,7 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 std::cout << "For register spilling, check Long Scoreboard stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "For register spilling, check LG Throttle stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active << " % per warp active" << std::endl;
                 auto local_load_store = v_metric.metrics_list.smsp__inst_executed_op_local_ld + v_metric.metrics_list.smsp__inst_executed_op_local_st;
-                int total_SM = 144; // TODO: this should be editable
+                int total_SM = 16;
                 auto estimated_l2_queries_lmem_allSM = 2 * 4 * total_SM * ((1 - (v_metric.metrics_list.l1tex__t_sector_hit_rate / 100)) * local_load_store);
                 auto total_l2_queries = v_metric.metrics_list.lts__t_sectors_op_read + v_metric.metrics_list.lts__t_sectors_op_write + v_metric.metrics_list.lts__t_sectors_op_atom + v_metric.metrics_list.lts__t_sectors_op_red;
                 auto l2_queries_lmem_percent = estimated_l2_queries_lmem_allSM / total_l2_queries;

@@ -1,6 +1,6 @@
 /**
  * SASS code analysis to detect use of vectorized load
- *
+ * 
  * @author Soumya Sen
 */
 

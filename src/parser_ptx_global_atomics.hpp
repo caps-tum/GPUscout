@@ -228,7 +228,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
         std::cout << "Could not open the file: " << filename << std::endl;
 
     // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " << counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl;
-    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Shared atomics: " << counter_map["_Z4HistPiiPfi"].atom_shared_count << std::endl; for (const
+    // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Shared atomics: " << counter_map["_Z4HistPiiPfi"].atom_shared_count << std::endl;
     // for (const auto& i : counter_map["_Z4HistPiiPfi"].atom_global_line_number)
     // {
     //     std::cout << "Global atomic line number: " << i << std::endl;

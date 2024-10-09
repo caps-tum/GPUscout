@@ -57,7 +57,7 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
 /// @param live_register_map Currently used (or live) register count denoting register pressure
-void merge_analysis_restrict(std::unordered_map<std::string, std::vector<register_used>> restrict_analysis_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map, int save_as_json, std::string json_output_dir)
+json merge_analysis_restrict(std::unordered_map<std::string, std::vector<register_used>> restrict_analysis_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map)
 {
     json result;
 
@@ -157,13 +157,7 @@ void merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
         result[k_sass] = kernel_result;
     }
 
-    if (save_as_json)
-    {
-        std::ofstream json_file;
-        json_file.open(json_output_dir + "/use_restrict.json");
-        json_file << result.dump(4);
-        json_file.close();
-    }
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -183,5 +177,13 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[7], "true") == 0;
     std::string json_output_dir = argv[8];
 
-    merge_analysis_restrict(restrict_analysis_map, pc_stall_map, metric_map, live_register_map, save_as_json, json_output_dir);
+    json result = merge_analysis_restrict(restrict_analysis_map, pc_stall_map, metric_map, live_register_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/use_restrict.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 }

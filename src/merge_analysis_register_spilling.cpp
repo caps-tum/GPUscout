@@ -43,7 +43,7 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
 /// @param live_register_map Currently used (or live) register count denoting register pressure
-void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<local_memory_counter>> spilling_analysis_map, std::unordered_map<std::string, std::vector<track_register_instruction>> track_register_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map, int save_as_json, std::string json_output_dir)
+json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<local_memory_counter>> spilling_analysis_map, std::unordered_map<std::string, std::vector<track_register_instruction>> track_register_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map)
 {
     json result;
 
@@ -146,7 +146,6 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 std::cout << estimated_l2_queries_lmem_allSM << " - " << total_l2_queries << std::endl;
                 std::cout << "Percentage of total L2 queries due to LMEM: " << l2_queries_lmem_percent << " %" << std::endl;
                 std::cout << "WARNING   ::  If the above percentage is high, it means the memory traffic between the SMs and L2 cache is mostly due to LMEM (need to contain register spills)" << std::endl;
-
                 kernel_result["metrics"] = {
                     {"memory_flow", memory_flow_metrics},
                     {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
@@ -159,13 +158,7 @@ void merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
         result[k_sass] = kernel_result;
     }
 
-    if (save_as_json)
-    {
-        std::ofstream json_file;
-        json_file.open(json_output_dir + "/register_spilling.json");
-        json_file << result.dump(4);
-        json_file.close();
-    }
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -188,7 +181,15 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[7], "true") == 0;
     std::string json_output_dir = argv[8];
 
-    merge_analysis_register_spill(spilling_analysis_map, track_register_map, pc_stall_map, metric_map, live_register_map, save_as_json, json_output_dir);
+    json result = merge_analysis_register_spill(spilling_analysis_map, track_register_map, pc_stall_map, metric_map, live_register_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/register_spilling.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 
     return 0;
 }

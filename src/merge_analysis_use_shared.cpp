@@ -55,7 +55,7 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param branch_map Target branch information to detect if the atomic operation is in a for-loop
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map, std::unordered_map<std::string, std::vector<branch_counter>> branch_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, int save_as_json, std::string json_output_dir)
+json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map, std::unordered_map<std::string, std::vector<branch_counter>> branch_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
 {
     json result;
 
@@ -199,13 +199,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
         result[k_sass] = kernel_result;
     }
 
-    if (save_as_json)
-    {
-        std::ofstream json_file;
-        json_file.open(json_output_dir + "/use_shared.json");
-        json_file << result.dump(4);
-        json_file.close();
-    }
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -224,7 +218,15 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[6], "true") == 0;
     std::string json_output_dir = argv[7];
 
-    merge_analysis_use_shared(shared_analysis_map, branch_map, pc_stall_map, metric_map, save_as_json, json_output_dir);
+    json result = merge_analysis_use_shared(shared_analysis_map, branch_map, pc_stall_map, metric_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/use_shared.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 
     return 0;
 }

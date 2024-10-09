@@ -187,13 +187,11 @@ echo "Generating JSON output . . . . . . . . . . . . . . . "
 
 ./save_to_json \
 ${gpuscout_output_dir} \
-${gpuscout_tmp_dir}/result-${run_prefix}.json \
-${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt \
-${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt \
-$copy_sources \
+${gpuscout_tmp_dir}/result-${run_prefix}.gscout \
+${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt \
+${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt \
 ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt \
-${run_prefix} \
-${gpuscout_tmp_dir}
+${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt
 
 fi
 

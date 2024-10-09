@@ -41,7 +41,7 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param datatype_conversion_map Includes I2F, F2I and F2F conversion data
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, int save_as_json, std::string json_output_dir)
+json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
 {
     json result;
 
@@ -135,13 +135,7 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
         result[k_sass] = kernel_result;
     }
 
-    if (save_as_json)
-    {
-        std::ofstream json_file;
-        json_file.open(json_output_dir + "/datatype_conversion.json");
-        json_file << result.dump(4);
-        json_file.close();
-    }
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -158,7 +152,15 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[6], "true") == 0;
     std::string json_output_dir = argv[7];
 
-    merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map, save_as_json, json_output_dir);
+    json result = merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/datatype_conversion.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 
     return 0;
 }

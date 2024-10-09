@@ -14,9 +14,10 @@
 #include <fstream>
 
 using json = nlohmann::json;
+
 /// @brief Detects deadlock in code
 /// @param detection_map Analysis for deadlock detection
-void merge_analysis_deadlock_detection(std::unordered_map<std::string, deadlock_detect> detection_map, int save_as_json, std::string json_output_dir)
+json merge_analysis_deadlock_detection(std::unordered_map<std::string, deadlock_detect> detection_map)
 {
     json result;
 
@@ -39,13 +40,7 @@ void merge_analysis_deadlock_detection(std::unordered_map<std::string, deadlock_
         result[k_sass] = kernel_result;
     }
 
-    if (save_as_json)
-    {
-        std::ofstream json_file;
-        json_file.open(json_output_dir + "/deadlock_detection.json");
-        json_file << result.dump(4);
-        json_file.close();
-    }
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -56,7 +51,15 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[6], "true") == 0;
     std::string json_output_dir = argv[7];
 
-    merge_analysis_deadlock_detection(detection_map, save_as_json, json_output_dir);
+    json result = merge_analysis_deadlock_detection(detection_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/deadlock_detection.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 
     return 0;
 }

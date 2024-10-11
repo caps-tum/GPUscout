@@ -16,6 +16,9 @@ if [ "$dry_run" = false ]; then
     # Extract all the metrics in one pass
     ncu -f --csv --log-file ${run_prefix}_metrics_list --print-units base --print-kernel-base mangled --metrics \
 smsp__warps_active.sum,\
+smsp__sass_inst_executed_op_global.sum,\
+smsp__sass_inst_executed.sum,\
+l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum,\
 smsp__warp_issue_stalled_barrier_per_warp_active.pct,\
 smsp__warp_issue_stalled_membar_per_warp_active.pct,\
 smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct,\

@@ -29,6 +29,9 @@ using json = nlohmann::json;
 struct cuda_metrics
 {
     double smsp__warps_active;
+    double smsp__sass_inst_executed_op_global;
+    double l1tex__t_sectors_pipe_lsu_mem_global_op_st;
+    double smsp__sass_inst_executed;
     double smsp__warp_issue_stalled_barrier_per_warp_active;
     double smsp__warp_issue_stalled_membar_per_warp_active;
     double smsp__warp_issue_stalled_short_scoreboard_per_warp_active;
@@ -132,7 +135,6 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
             }
             word_index++;
         }
-        std::cout << metric_name_index << metric_value_index << std::endl;
 
         // Read from the next lines (contains the data)
         while (std::getline(file, line))
@@ -170,7 +172,19 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
         // std::cout << i[9] << std::endl;
 
         // Note: loosing the decimal part of the value since in German it is denoted as comma and we are using comma as delimiter
-        if (i[metric_name_index] == "smsp__warps_activec.sum")
+        if (i[metric_name_index] == "smsp__sass_inst_executed.sum")
+        {
+            metric_obj.smsp__sass_inst_executed = std::stod(i[metric_value_index]);
+        }
+        if (i[metric_name_index] == "l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum")
+        {
+            metric_obj.l1tex__t_sectors_pipe_lsu_mem_global_op_st = std::stod(i[metric_value_index]);
+        }
+        if (i[metric_name_index] == "smsp__sass_inst_executed_op_global.sum")
+        {
+            metric_obj.smsp__sass_inst_executed_op_global = std::stod(i[metric_value_index]);
+        }
+        if (i[metric_name_index] == "smsp__warps_active.sum")
         {
             metric_obj.smsp__warps_active = std::stod(i[metric_value_index]);
         }
@@ -450,7 +464,7 @@ json atomic_data_memory_flow(const kernel_metrics &all_metrics)
     return {
         {"global_to_l1_cache_miss_perc", 100 - l1_red_atom_hit_rate},
         {"l1_to_l2_cache_miss_perc", 100 - lts_red_atom_hit_rate},
-        {"l1_to_l2__bytes", requests_l1_l2_global_red},
+        {"l1_to_l2_bytes", requests_l1_l2_global_red},
         {"l2_to_dram_bytes", requests_l2_dram_red},
         {"global_to_l1_red_atom_bytes", 32 * red_atom_requests},
         {"kernel_to_shared_bytes", all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom}

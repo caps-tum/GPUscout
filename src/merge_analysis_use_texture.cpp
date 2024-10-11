@@ -89,7 +89,6 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
     for (auto [k_sass, v_sass] : texture_analysis_map)
     {
         json kernel_result = {
-            {"texture_memory_used", false},
             {"occurrences", json::array()}
         };
 
@@ -101,6 +100,7 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
 
         std::cout << "--------------------- Use texture memory analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
         bool texture_recommend_flag = false;
+        bool texture_memory_used = false;
         for (auto index_sass : v_sass)
         {
             json line_result;
@@ -108,7 +108,7 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
             if (index_sass.is_texture_load)
             {
                 std::cout << "INFO  ::  Use of texture memory detected in the kernel" << std::endl;
-                kernel_result["texture_memory_used"] = true;
+                texture_memory_used = true;
                 break; // using break necessary, else code gets stuck in a loop
                 // if break statement needs to be removed, add default values for the register_obj in the parser file
             }
@@ -181,6 +181,8 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
                     {"texture_data_memory_flow", tex_data_memory_metrics},
                     {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
                     {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
+                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active},
+                    {"texture_memory_used", texture_memory_used}
                 };
             }
         }

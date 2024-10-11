@@ -139,7 +139,7 @@ int main(int argc, char **argv)
     result_file.open(output_file_path);
 
     if (result_file.is_open()) {
-        result_file << result.dump();
+        result_file << result.dump(4);
         result_file.close();
     }
 }

@@ -151,6 +151,12 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                     {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
                     {"smsp__warp_issue_stalled_lg_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active},
                     {"l2_queries_due_to_mem_perc", l2_queries_lmem_percent},
+                    {"total_l2_queries", total_l2_queries},
+                    {"smsp__inst_executed_op_local_ld", v_metric.metrics_list.smsp__inst_executed_op_local_ld},
+                    {"smsp__inst_executed_op_local_st", v_metric.metrics_list.smsp__inst_executed_op_local_st},
+                    {"smsp__sass_inst_executed", v_metric.metrics_list.smsp__sass_inst_executed},
+                    {"sm__warps_active", v_metric.metrics_list.sm__warps_active},
+                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active}
                 };
             };
         }

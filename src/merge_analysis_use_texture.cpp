@@ -136,7 +136,8 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
                     {"pc_offset", index_sass.pcOffset},
                     {"written_register", index_sass.write_to_register_number},
                     {"read_register", index_sass.load_from_register},
-                    {"spatial_locality", multiple_reads_register_flag}
+                    {"spatial_locality", multiple_reads_register_flag},
+                    {"unroll_pc_offsets", index_sass.register_unroll_pcOffsets}
                 };
 
                 // Map kernel with the PC Stall map

@@ -35,6 +35,7 @@ struct register_used
     std::string write_to_register_number;
     std::string load_from_register;
     std::set<unsigned long> load_from_register_unrolls;
+    std::set<std::string> register_unroll_pcOffsets;
     used_flag flag;
 
     bool is_texture_load;
@@ -205,6 +206,7 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                     // TODO: check if unrolls should not be reset before!!!
                     register_obj.load_from_register = read_register_pair(line).first;
                     register_obj.load_from_register_unrolls.insert(read_register_pair(line).second);
+                    register_obj.register_unroll_pcOffsets.insert(get_pcoffset_sass(line));
 
                     register_obj.is_texture_load = false;
 

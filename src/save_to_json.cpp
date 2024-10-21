@@ -13,6 +13,27 @@
 
 using json = nlohmann::json;
 
+// https://www.jeremymorgan.com/tutorials/c-programming/how-to-capture-the-output-of-a-linux-command-in-c/
+std::string get_demangled_kernel(std::string kernel_name) {
+    std::string command = "cu++filt -p " + kernel_name;
+    std::string result;
+    FILE* stream;
+    const int max_buffer = 256;
+    char buffer[max_buffer];
+
+    stream = popen(command.c_str(), "r");
+
+    if (stream) {
+        while (!feof(stream)) {
+            if (fgets(buffer, max_buffer, stream) != NULL)
+                result.append(buffer);
+        }
+        pclose(stream);
+    }
+    result.erase(std::remove(result.begin(), result.end(), '\n'), result.end());     
+    return result;
+}
+
 int main(int argc, char **argv) 
 {
     std::string json_files_dir = argv[1];
@@ -32,7 +53,8 @@ int main(int argc, char **argv)
             {"sass_registers", ""},
             {"ptx", ""},
         }},
-        {"source_files", json::object()}
+        {"source_files", json::object()},
+        {"kernels", json::object()}
     };
 
     // Add individual analysis results to result file
@@ -50,6 +72,12 @@ int main(int argc, char **argv)
         std::ifstream analysis_file(path);
         if (analysis_file.is_open()) {
             result["analyses"][filename] = json::parse(analysis_file);
+
+            for (auto& kernel : result["analyses"][filename].items()) {
+                if (!result["kernels"].contains(kernel.key())) {
+                    result["kernels"][kernel.key()] = get_demangled_kernel(kernel.key());
+                }
+            }
         }
         analysis_file.close();
     }

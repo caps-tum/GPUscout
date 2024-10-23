@@ -42,7 +42,6 @@ int main(int argc, char **argv)
     std::string sass_register_file = argv[4];
     std::string ptx_file = argv[5];
     std::string pc_samples_file = argv[6];
-    std::string metrics_file = argv[7];
 
     json result = {
         {"analyses", json::object()},

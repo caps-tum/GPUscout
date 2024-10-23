@@ -13,6 +13,27 @@
 
 using json = nlohmann::json;
 
+// https://www.jeremymorgan.com/tutorials/c-programming/how-to-capture-the-output-of-a-linux-command-in-c/
+std::string get_demangled_kernel(std::string kernel_name) {
+    std::string command = "cu++filt -p " + kernel_name;
+    std::string result;
+    FILE* stream;
+    const int max_buffer = 256;
+    char buffer[max_buffer];
+
+    stream = popen(command.c_str(), "r");
+
+    if (stream) {
+        while (!feof(stream)) {
+            if (fgets(buffer, max_buffer, stream) != NULL)
+                result.append(buffer);
+        }
+        pclose(stream);
+    }
+    result.erase(std::remove(result.begin(), result.end(), '\n'), result.end());     
+    return result;
+}
+
 int main(int argc, char **argv) 
 {
     std::string json_files_dir = argv[1];
@@ -30,7 +51,8 @@ int main(int argc, char **argv)
             {"sass_registers", ""},
             {"ptx", ""},
         }},
-        {"source_files", json::object()}
+        {"source_files", json::object()},
+        {"kernels", json::object()}
     };
 
     // Add individual analysis results to result file
@@ -48,6 +70,12 @@ int main(int argc, char **argv)
         std::ifstream analysis_file(path);
         if (analysis_file.is_open()) {
             result["analyses"][filename] = json::parse(analysis_file);
+
+            for (auto& kernel : result["analyses"][filename].items()) {
+                if (!result["kernels"].contains(kernel.key())) {
+                    result["kernels"][kernel.key()] = get_demangled_kernel(kernel.key());
+                }
+            }
         }
         analysis_file.close();
     }
@@ -128,7 +156,7 @@ int main(int argc, char **argv)
     result["binary_files"]["sass"] = file_content;
     sass_content.close();
 
-    std::ifstream sass_registers(tmp_string);
+    std::ifstream sass_registers(sass_register_file);
     if (sass_registers.is_open()) {
         std::string content((std::istreambuf_iterator<char>(sass_registers)), (std::istreambuf_iterator<char>()));
         result["binary_files"]["sass_registers"] = content;
@@ -136,10 +164,15 @@ int main(int argc, char **argv)
     sass_registers.close();
 
     std::ofstream result_file;
-    result_file.open(output_file_path);
+    std::string save_file_path = output_file_path;
+    int index = 1;
+    while (std::filesystem::exists(save_file_path + ".gscout")) {
+        save_file_path = output_file_path + " (" + std::to_string(index++) + ")";
+    }
+    result_file.open(save_file_path + ".gscout");
 
     if (result_file.is_open()) {
-        result_file << result.dump();
+        result_file << result.dump(4);
         result_file.close();
     }
 }

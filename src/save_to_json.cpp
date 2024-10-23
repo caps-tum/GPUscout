@@ -46,7 +46,6 @@ int main(int argc, char **argv)
 
     json result = {
         {"analyses", json::object()},
-        {"metrics", json::object()},
         {"stalls", json::object()},
         {"binary_files", {
             {"sass", ""},
@@ -97,13 +96,6 @@ int main(int argc, char **argv)
             });
         }
     }
-
-    std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(metrics_file);
-    json json_metrics = {};
-    for (auto [k_metric, v_metric] : metric_map) {
-        json_metrics[v_metric.kernel_name] = v_metric.metrics_list;
-    }
-    result["metrics"] = json_metrics;
 
     // Copy source files and save their mapping
     // Get source files used in ptx

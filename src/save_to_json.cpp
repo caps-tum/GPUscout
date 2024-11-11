@@ -166,10 +166,10 @@ int main(int argc, char **argv)
     std::ofstream result_file;
     std::string save_file_path = output_file_path;
     int index = 1;
-    while (std::filesystem::exists(save_file_path + ".gscout")) {
+    while (std::filesystem::exists(save_file_path + ".json")) {
         save_file_path = output_file_path + " (" + std::to_string(index++) + ")";
     }
-    result_file.open(save_file_path + ".gscout");
+    result_file.open(save_file_path + ".json");
 
     if (result_file.is_open()) {
         result_file << result.dump(4);

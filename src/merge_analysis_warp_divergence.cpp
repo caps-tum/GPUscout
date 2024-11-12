@@ -97,7 +97,7 @@ json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
         {
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
-                double branch_divergence_percent = branch_divergence(metric_map[k_metric]);
+                double branch_divergence_percent = 100.0 * v_metric.metrics_list.sm__sass_branch_targets_threads_divergent / v_metric.metrics_list.sm__sass_branch_targets;
                 if (branch_divergence_percent > 0)
                 {
                     std::cout << "WARNING   ::  Average number of branches that diverge in your code: " << branch_divergence_percent << " %" << std::endl;
@@ -106,6 +106,9 @@ json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                 {
                     std::cout << "INFO  ::  No branches are diverging in your code" << std::endl;
                 }
+                kernel_result["metrics"] = {
+                    {"branch_divergence_perc", branch_divergence_percent}
+                };
             }
         }
         result[k_sass] = kernel_result;

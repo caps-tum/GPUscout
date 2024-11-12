@@ -92,7 +92,6 @@ int main(int argc, char **argv)
         json_metrics[v_metric.kernel_name]["shared_data_memory_flow"] = shared_data_memory_flow(v_metric);
         json_metrics[v_metric.kernel_name]["shared_memory_bank_conflict"] = shared_memory_bank_conflict(v_metric);
         json_metrics[v_metric.kernel_name]["texture_data_memory_flow"] = texture_data_memory_flow(v_metric);
-        json_metrics[v_metric.kernel_name]["branch_divergence_percent"] = branch_divergence(v_metric);
         json_metrics[v_metric.kernel_name]["global_data_per_instruction"] = global_data_per_instr(v_metric);
         json_metrics[v_metric.kernel_name]["l2_queries"] = l2_query_information(v_metric);
     }

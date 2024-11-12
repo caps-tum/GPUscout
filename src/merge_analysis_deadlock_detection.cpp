@@ -23,10 +23,9 @@ json merge_analysis_deadlock_detection(std::unordered_map<std::string, deadlock_
 
     for (auto [k_sass, v_sass] : detection_map)
     {
-        json kernel_result = {
-            {"metrics", {
-                "deadlock_detect_flag", v_sass.deadlock_detect_flag
-            }}
+        json kernel_result;
+        kernel_result["metrics"] = {
+            {"deadlock_detect_flag", v_sass.deadlock_detect_flag}
         };
 
         // Fix for blank kernel name appearing in the analysis_map

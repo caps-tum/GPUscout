@@ -653,10 +653,6 @@ json shared_memory_bank_conflict(const kernel_metrics &all_metrics)
     return result;
 }
 
-double branch_divergence(const kernel_metrics &all_metrics) {
-    return 100.0 * all_metrics.metrics_list.sm__sass_branch_targets_threads_divergent / all_metrics.metrics_list.sm__sass_branch_targets;
-}
-
 auto global_data_per_instr(const kernel_metrics &all_metrics) {
     return (32 * (all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_st + all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld)) / all_metrics.metrics_list.smsp__sass_inst_executed;
 }

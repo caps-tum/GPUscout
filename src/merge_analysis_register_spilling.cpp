@@ -133,7 +133,7 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Data flow in memory for load operations" << std::endl;
-                json memory_flow_metrics = load_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check local memory flow)
+                load_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check local memory flow)
 
                 // copied register_spilling_analysis from stalls_static_analysis_relation() method
                 std::cout << "For register spilling, check Long Scoreboard stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
@@ -146,18 +146,6 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 std::cout << estimated_l2_queries_lmem_allSM << " - " << total_l2_queries << std::endl;
                 std::cout << "Percentage of total L2 queries due to LMEM: " << l2_queries_lmem_percent << " %" << std::endl;
                 std::cout << "WARNING   ::  If the above percentage is high, it means the memory traffic between the SMs and L2 cache is mostly due to LMEM (need to contain register spills)" << std::endl;
-                kernel_result["metrics"] = {
-                    {"memory_flow", memory_flow_metrics},
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"smsp__warp_issue_stalled_lg_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active},
-                    {"l2_queries_due_to_mem_perc", l2_queries_lmem_percent},
-                    {"total_l2_queries", total_l2_queries},
-                    {"smsp__inst_executed_op_local_ld", v_metric.metrics_list.smsp__inst_executed_op_local_ld},
-                    {"smsp__inst_executed_op_local_st", v_metric.metrics_list.smsp__inst_executed_op_local_st},
-                    {"smsp__sass_inst_executed", v_metric.metrics_list.smsp__sass_inst_executed},
-                    {"sm__warps_active", v_metric.metrics_list.sm__warps_active},
-                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active}
-                };
             };
         }
 

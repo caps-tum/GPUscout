@@ -42,17 +42,19 @@ int main(int argc, char **argv)
     std::string sass_register_file = argv[4];
     std::string ptx_file = argv[5];
     std::string pc_samples_file = argv[6];
+    std::string metrics_file = argv[7];
 
     json result = {
+        {"kernels", json::object()},
         {"analyses", json::object()},
+        {"metrics", json::object()},
         {"stalls", json::object()},
         {"binary_files", {
             {"sass", ""},
             {"sass_registers", ""},
             {"ptx", ""},
         }},
-        {"source_files", json::object()},
-        {"kernels", json::object()}
+        {"source_files", json::object()}
     };
 
     // Add individual analysis results to result file
@@ -79,6 +81,22 @@ int main(int argc, char **argv)
         }
         analysis_file.close();
     }
+
+    // Add metrics
+    std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(metrics_file);
+    json json_metrics = {};
+    for (auto [k_metric, v_metric] : metric_map) {
+        json_metrics[v_metric.kernel_name] = v_metric.metrics_list;
+        json_metrics[v_metric.kernel_name]["atomic_data_memory_flow"] = atomic_data_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name]["load_data_memory_flow"] = load_data_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name]["shared_data_memory_flow"] = shared_data_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name]["shared_memory_bank_conflict"] = shared_memory_bank_conflict(v_metric);
+        json_metrics[v_metric.kernel_name]["texture_data_memory_flow"] = texture_data_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name]["branch_divergence_percent"] = branch_divergence(v_metric);
+        json_metrics[v_metric.kernel_name]["global_data_per_instruction"] = global_data_per_instr(v_metric);
+        json_metrics[v_metric.kernel_name]["l2_queries"] = l2_query_information(v_metric);
+    }
+    result["metrics"] = json_metrics;
 
     // Add stall information to result file
     std::unordered_map<std::string, std::vector<pc_issue_samples>> stall_map = get_warp_stalls(pc_samples_file, sass_file, analysis_kind::ALL);

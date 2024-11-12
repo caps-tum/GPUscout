@@ -85,6 +85,64 @@ struct cuda_metrics
     double smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld;
 };
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cuda_metrics, 
+    smsp__warps_active,
+    smsp__sass_inst_executed_op_global,
+    l1tex__t_sectors_pipe_lsu_mem_global_op_st,
+    smsp__sass_inst_executed,
+    smsp__warp_issue_stalled_barrier_per_warp_active,
+    smsp__warp_issue_stalled_membar_per_warp_active,
+    smsp__warp_issue_stalled_short_scoreboard_per_warp_active,
+    smsp__warp_issue_stalled_wait_per_warp_active,
+    smsp__thread_inst_executed_per_inst_executed,
+    sm__sass_branch_targets,
+    sm__sass_branch_targets_threads_divergent,
+    smsp__warp_issue_stalled_imc_miss_per_warp_active,
+    smsp__warp_issue_stalled_long_scoreboard_per_warp_active,
+    sm__warps_active,
+    smsp__warp_issue_stalled_lg_throttle_per_warp_active,
+    smsp__warp_issue_stalled_mio_throttle_per_warp_active,
+    smsp__warp_issue_stalled_tex_throttle_per_warp_active,
+    sm__sass_inst_executed_op_global_red,
+    sm__sass_inst_executed_op_shared_atom,
+    l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld,
+    sm__sass_inst_executed_op_shared_ld,
+    l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st,
+    sm__sass_inst_executed_op_shared_st,
+    smsp__sass_average_data_bytes_per_wavefront_mem_shared,
+    smsp__inst_executed_op_local_ld,
+    smsp__inst_executed_op_local_st,
+    lts__t_sectors_op_atom,
+    lts__t_sectors_op_read,
+    lts__t_sectors_op_red,
+    lts__t_sectors_op_write,
+    l1tex__t_sector_hit_rate,
+    sm__sass_inst_executed_op_global_ld,
+    l1tex__t_sectors_pipe_lsu_mem_global_op_ld,
+    l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate,
+    lts__t_sector_op_read_hit_rate,
+    l1tex__t_sectors_pipe_lsu_mem_local_op_ld,
+    l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate,
+    l1tex__t_sectors_pipe_lsu_mem_global_op_red,
+    l1tex__t_sectors_pipe_lsu_mem_global_op_atom,
+    l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate,
+    l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate,
+    lts__t_sector_op_red_hit_rate,
+    lts__t_sector_op_atom_hit_rate,
+    sm__sass_data_bytes_mem_shared_op_atom,
+    l1tex__m_xbar2l1tex_read_sectors_mem_lg_op_ld_bandwidth,
+    l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld,
+    smsp__inst_executed_op_global_ld,
+    memory_l2_theoretical_sectors_global,
+    memory_l2_theoretical_sectors_global_ideal,
+    memory_l1_wavefronts_shared,
+    memory_l1_wavefronts_shared_ideal,
+    sm__sass_inst_executed_op_texture,
+    l1tex__t_sectors_pipe_tex_mem_texture,
+    l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate,
+    smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld
+)
+
 struct kernel_metrics
 {
     int id;
@@ -593,6 +651,26 @@ json shared_memory_bank_conflict(const kernel_metrics &all_metrics)
     }
 
     return result;
+}
+
+double branch_divergence(const kernel_metrics &all_metrics) {
+    return 100.0 * all_metrics.metrics_list.sm__sass_branch_targets_threads_divergent / all_metrics.metrics_list.sm__sass_branch_targets;
+}
+
+auto global_data_per_instr(const kernel_metrics &all_metrics) {
+    return (32 * (all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_st + all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld)) / all_metrics.metrics_list.smsp__sass_inst_executed;
+}
+
+json l2_query_information(const kernel_metrics &all_metrics) {
+    auto local_load_store = all_metrics.metrics_list.smsp__inst_executed_op_local_ld + all_metrics.metrics_list.smsp__inst_executed_op_local_st;
+    int total_SM = 144; // TODO: this should be editable
+    auto estimated_l2_queries_lmem_allSM = 2 * 4 * total_SM * ((1 - (all_metrics.metrics_list.l1tex__t_sector_hit_rate / 100)) * local_load_store);
+    auto total_l2_queries = all_metrics.metrics_list.lts__t_sectors_op_read + all_metrics.metrics_list.lts__t_sectors_op_write + all_metrics.metrics_list.lts__t_sectors_op_atom + all_metrics.metrics_list.lts__t_sectors_op_red;
+    auto l2_queries_lmem_percent = estimated_l2_queries_lmem_allSM / total_l2_queries;
+    return {
+        {"l2_queries_due_to_mem_perc", l2_queries_lmem_percent},
+        {"total_l2_queries", total_l2_queries},
+    };
 }
 
 // Used/unused metric analysis

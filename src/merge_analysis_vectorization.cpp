@@ -163,17 +163,7 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                 std::cout << "If you are using non-vectorized load/store, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "INFO  ::  Using vectorized load increases the register pressure and hence might affect occupancy. Occupancy achieved: " << v_metric.metrics_list.sm__warps_active << " %" << std::endl;
 
-                auto global_data_per_instruction = (32 * (v_metric.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_st + v_metric.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld)) / v_metric.metrics_list.smsp__sass_inst_executed;
-
-                kernel_result["metrics"] = {
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"sm__warps_active", v_metric.metrics_list.sm__warps_active},
-                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active},
-                    {"sm__sass_inst_executed_op_global_ld", v_metric.metrics_list.sm__sass_inst_executed_op_global_ld},
-                    {"smsp__sass_inst_executed", v_metric.metrics_list.smsp__sass_inst_executed},
-                    {"global_data_per_instruction", global_data_per_instruction},
-                    {"global_load_count", v_sass.global_load_count}
-                };
+                auto global_data_per_instruction = global_data_per_instr(metric_map[k_metric]);
             }
         }
 

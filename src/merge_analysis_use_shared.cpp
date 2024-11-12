@@ -177,7 +177,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Check data flow in shared memory, if you modify your code to use shared memory" << std::endl;
-                json data_memory_flow_metrics = shared_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check shared memory flow)
+                shared_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check shared memory flow)
 
                 // copied use_shared_memory_analysis from stalls_static_analysis_relation() method
                 std::cout << "If using shared memory, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " %" << std::endl;
@@ -185,14 +185,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
 
                 //  If multiple threads in the same warp request access to the same memory bank, the accesses are serialized
                 std::cout << "INFO  ::  Check bank conflict in shared memory, if you modify your code to use shared memory." << std::endl;
-                json bank_conflict_metrics = shared_memory_bank_conflict(metric_map[k_metric]); // show how many way bank conflict present in the shared memory access
-
-                kernel_result["metrics"] = {
-                    {"data_memory_flow", data_memory_flow_metrics},
-                    {"bank_conflict", bank_conflict_metrics},
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active}
-                };
+                shared_memory_bank_conflict(metric_map[k_metric]); // show how many way bank conflict present in the shared memory access
             }
         }
 

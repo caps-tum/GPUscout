@@ -172,19 +172,11 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Check data flow in texture memory, if you modify your code to use textures" << std::endl;
-                json tex_data_memory_metrics = texture_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check texture memory flow)
+                texture_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check texture memory flow)
 
                 // copied use_texture_memory_analysis from stalls_static_analysis_relation() method
                 std::cout << "If you are using texture memory, check Tex Throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "If you are using texture memory, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " %" << std::endl;
-
-                kernel_result["metrics"] = {
-                    {"texture_data_memory_flow", tex_data_memory_metrics},
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
-                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active},
-                    {"texture_memory_used", texture_memory_used}
-                };
             }
         }
 

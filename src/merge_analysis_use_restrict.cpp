@@ -148,13 +148,6 @@ json merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "If using __restrict__ (read-only cache), check IMC miss: " << v_metric.metrics_list.smsp__warp_issue_stalled_imc_miss_per_warp_active << " % per warp active" << std::endl;
-                kernel_result["metrics"] = {
-                    {"smsp__warp_issue_stalled_imc_miss_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_imc_miss_per_warp_active},
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"smsp__warps_active", v_metric.metrics_list.smsp__warps_active},
-                    {"sm__warps_active", v_metric.metrics_list.sm__warps_active},
-                    {"smsp__sass_inst_executed_op_global", v_metric.metrics_list.smsp__sass_inst_executed_op_global}
-                };
             }
         }
 

@@ -47,6 +47,7 @@ lts__t_sectors_op_write.sum,\
 smsp__inst_executed_op_local_ld.sum,\
 smsp__inst_executed_op_local_st.sum,\
 sm__sass_inst_executed_op_global_ld.sum,\
+sm__sass_inst_executed_op_local_ld.sum,\
 l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
 l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,\
 lts__t_sector_op_read_hit_rate.pct,\

@@ -60,6 +60,7 @@ struct cuda_metrics
     double lts__t_sectors_op_write;
     double l1tex__t_sector_hit_rate;
     double sm__sass_inst_executed_op_global_ld;
+    double sm__sass_inst_executed_op_local_ld;
     double l1tex__t_sectors_pipe_lsu_mem_global_op_ld;
     double l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate;
     double lts__t_sector_op_read_hit_rate;
@@ -118,6 +119,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(cuda_metrics,
     lts__t_sectors_op_write,
     l1tex__t_sector_hit_rate,
     sm__sass_inst_executed_op_global_ld,
+    sm__sass_inst_executed_op_local_ld,
     l1tex__t_sectors_pipe_lsu_mem_global_op_ld,
     l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate,
     lts__t_sector_op_read_hit_rate,

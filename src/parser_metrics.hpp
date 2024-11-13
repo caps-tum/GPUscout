@@ -360,7 +360,7 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
         {
             metric_obj.sm__sass_inst_executed_op_global_ld = std::stod(i[metric_value_index]);
         }
-        if (i[metric_name_index] == "sm__sass_inst_executed_op_global_ld.sum")
+        if (i[metric_name_index] == "sm__sass_inst_executed_op_local_ld.sum")
         {
             metric_obj.sm__sass_inst_executed_op_local_ld = std::stod(i[metric_value_index]);
         }

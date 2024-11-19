@@ -53,6 +53,7 @@ Usage: GPUscout [-h] [--dry-run] [--verbose] -e executable [-c directory] [--arg
     -e | --executable : Path to the executable (compiled with nvcc).
     -c | --cubin : Path to the cubin file (compiled with nvcc, with -cubin). If left empty, the same path as executable and the name cubin-<executable> will be assumed.
     -a | --args : Arguments for running the binary. e.g. --args=\"64 2 2 temp_64 power_64 output_64.txt\"
+    -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)
 ```
 
 This should automatically start analysing the code and printing recommendations on the terminal screen.

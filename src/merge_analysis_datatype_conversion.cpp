@@ -10,6 +10,11 @@
 #include "parser_sass_datatype_conversion.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
+#include "utilities/json.hpp"
+#include <cstring>
+#include <fstream>
+
+using json = nlohmann::json;
 
 void print_stalls_percentage(const pc_issue_samples &index)
 {
@@ -36,10 +41,16 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param datatype_conversion_map Includes I2F, F2I and F2F conversion data
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
+json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : datatype_conversion_map)
     {
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
         {
@@ -53,6 +64,10 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             for (auto i : v_sass.F2F_line)
             {
                 std::cout << i << ", ";
+                kernel_result["occurrences"].push_back({
+                    {"line_number", i},
+                    {"type", "F2F"}
+                });
             }
             std::cout << std::endl;
         }
@@ -67,6 +82,11 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             for (auto i : v_sass.I2F_line)
             {
                 std::cout << i << ", ";
+                kernel_result["occurrences"].push_back({
+                    {"line_number", i},
+                    {"pc_offset", i},
+                    {"type", "I2F"}
+                });
             }
             std::cout << std::endl;
         }
@@ -81,6 +101,11 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             for (auto i : v_sass.F2I_line)
             {
                 std::cout << i << ", ";
+                kernel_result["occurrences"].push_back({
+                    {"line_number", i},
+                    {"pc_offset", i},
+                    {"type", "F2I"}
+                });
             }
             std::cout << std::endl;
         }
@@ -97,9 +122,18 @@ void merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 std::cout << "For F2F (32 to 64 bit) conversions, check Tex throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check MIO throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check Short Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active << " %" << std::endl;
+                kernel_result["metrics"] = {
+                    {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
+                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
+                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active}
+                };
             }
         }
+
+        result[k_sass] = kernel_result;
     }
+
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -113,7 +147,18 @@ int main(int argc, char **argv)
     std::string filename_metrics = argv[5];
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(filename_metrics);
 
-    merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map);
+    int save_as_json = std::strcmp(argv[6], "true") == 0;
+    std::string json_output_dir = argv[7];
+
+    json result = merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/datatype_conversion.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 
     return 0;
 }

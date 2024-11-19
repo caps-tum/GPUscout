@@ -10,6 +10,9 @@
 #include "parser_sass_use_shared.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
+#include "utilities/json.hpp"
+
+using json = nlohmann::json;
 
 std::string get_register_from_line(std::string line)
 {
@@ -52,10 +55,16 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param branch_map Target branch information to detect if the atomic operation is in a for-loop
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map, std::unordered_map<std::string, std::vector<branch_counter>> branch_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
+json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map, std::unordered_map<std::string, std::vector<branch_counter>> branch_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : shared_analysis_map)
     {
+        json kernel_result = {
+            {"occurrences", {}}
+        };
+
         bool shared_recommend_flag = false;
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
@@ -66,6 +75,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
         std::cout << "--------------------- Use shared memory analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
         for (auto index_sass : v_sass)
         {
+            json line_result;
             // only print if the load count > 0 and operations on the register count is more than 1 and operations count more than load count
             // (i.e. multiple access to the registers and hence can be benefitted using shared memory)
             // also only print if there is a for loop detected inside which the load operations of the registers happen
@@ -78,15 +88,29 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                     if (index_sass.LDG_pcOffset == "LDGSTS")
                     {
                         std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already using asynchronous global to shared memory copy at line number " << index_sass.line_number << " of your code" << std::endl;
+                        line_result = {
+                            {"line_number", index_sass.line_number},
+                            {"register", index_sass.register_number},
+                            {"uses_shared_memory", true},
+                            {"uses_async_global_to_shared_memory_copy", true},
+                        };
                     }
 
                     // If already storing global reads to shared memory (without async memcpy)
                     else
                     {
                         std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already storing data in shared memory at line number " << index_sass.line_number << " of your code" << std::endl;
+                        line_result = {
+                            {"line_number", index_sass.line_number},
+                            {"register", index_sass.register_number},
+                            {"uses_shared_memory", true},
+                            {"uses_async_global_to_shared_memory_copy", false},
+                            {"instruction_count_to_shared_mem_store", index_sass.count_to_shared_mem_store}
+                        };
                         if (index_sass.count_to_shared_mem_store > 0)
                         {
                             std::cout << "Data loaded from global memory is stored to shared memory after " << index_sass.count_to_shared_mem_store << " instructions. Asynchronous global to shared memcopy might help for SM > 80" << std::endl;
+                            line_result["lgd_pc_offset"] = index_sass.LDG_pcOffset;
                         }
                     }
                 }
@@ -97,6 +121,14 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                         if ((j.target_branch_line_number != 0) && (index_sass.target_branch == j.target_branch))
                         {
                             std::cout << "Register number " << index_sass.register_number << " at line number " << index_sass.line_number << " of your code has " << index_sass.register_load_count << " total global load counts and " << index_sass.register_operation_count << " computation instruction counts" << std::endl;
+                            line_result = {
+                                {"line_number", index_sass.line_number},
+                                {"register", index_sass.register_number},
+                                {"uses_shared_memory", false},
+                                {"global_load_count", index_sass.register_load_count},
+                                {"computation_instruction_count", index_sass.register_operation_count},
+                                {"in_for_loop", j.inside_for_loop},
+                            };
                             if (j.inside_for_loop)
                             {
                                 std::cout << "This register seems to be in a for loop and hence will perform multiple load operations" << std::endl;
@@ -124,6 +156,9 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                     }
                 }
             }
+
+            if (!line_result.is_null())
+                kernel_result["occurrences"].push_back(line_result);
         }
 
         if (!shared_recommend_flag)
@@ -137,7 +172,7 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Check data flow in shared memory, if you modify your code to use shared memory" << std::endl;
-                shared_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check shared memory flow)
+                json data_memory_flow_metrics = shared_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check shared memory flow)
 
                 // copied use_shared_memory_analysis from stalls_static_analysis_relation() method
                 std::cout << "If using shared memory, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " %" << std::endl;
@@ -145,10 +180,21 @@ void merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
 
                 //  If multiple threads in the same warp request access to the same memory bank, the accesses are serialized
                 std::cout << "INFO  ::  Check bank conflict in shared memory, if you modify your code to use shared memory." << std::endl;
-                shared_memory_bank_conflict(metric_map[k_metric]); // show how many way bank conflict present in the shared memory access
+                json bank_conflict_metrics = shared_memory_bank_conflict(metric_map[k_metric]); // show how many way bank conflict present in the shared memory access
+
+                kernel_result["metrics"] = {
+                    {"data_memory_flow", data_memory_flow_metrics},
+                    {"bank_conflict", bank_conflict_metrics},
+                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
+                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active}
+                };
             }
         }
+
+        result[k_sass] = kernel_result;
     }
+
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -164,7 +210,18 @@ int main(int argc, char **argv)
     std::string filename_metrics = argv[5];
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(filename_metrics);
 
-    merge_analysis_use_shared(shared_analysis_map, branch_map, pc_stall_map, metric_map);
+    int save_as_json = std::strcmp(argv[6], "true") == 0;
+    std::string json_output_dir = argv[7];
+
+    json result = merge_analysis_use_shared(shared_analysis_map, branch_map, pc_stall_map, metric_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/use_shared.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 
     return 0;
 }

@@ -11,6 +11,7 @@ add_executable(merge_analysis_use_texture merge_analysis_use_texture.cpp)
 add_executable(merge_analysis_use_shared merge_analysis_use_shared.cpp)
 add_executable(merge_analysis_datatype_conversion merge_analysis_datatype_conversion.cpp)
 add_executable(merge_analysis_deadlock_detection merge_analysis_deadlock_detection.cpp)
+add_executable(save_to_json save_to_json.cpp)
 
 install(TARGETS merge_analysis_register_spilling 
                 merge_analysis_use_restrict
@@ -21,6 +22,7 @@ install(TARGETS merge_analysis_register_spilling
                 merge_analysis_use_shared
                 merge_analysis_datatype_conversion
                 merge_analysis_deadlock_detection
+                save_to_json
         DESTINATION analysis)
 install(PROGRAMS measurements.sh DESTINATION analysis)
 

@@ -20,6 +20,9 @@
 #include <algorithm>
 #include <memory>
 #include <cmath>
+#include "utilities/json.hpp"
+
+using json = nlohmann::json;
 
 /// @brief Metric data to collect from Nsight Compute CLI
 struct cuda_metrics
@@ -84,13 +87,13 @@ struct kernel_metrics
     cuda_metrics metrics_list;
 };
 
-void load_data_memory_flow(const kernel_metrics &);
-void atomic_data_memory_flow(const kernel_metrics &);
-void texture_data_memory_flow(const kernel_metrics &);
-void shared_data_memory_flow(const kernel_metrics &);
+json load_data_memory_flow(const kernel_metrics &);
+json atomic_data_memory_flow(const kernel_metrics &);
+json texture_data_memory_flow(const kernel_metrics &);
+json shared_data_memory_flow(const kernel_metrics &);
 void bypass_L1(const kernel_metrics &);
 void coalescing_efficiency(const kernel_metrics &);
-void shared_memory_bank_conflict(const kernel_metrics &);
+json shared_memory_bank_conflict(const kernel_metrics &);
 // void stalls_static_analysis_relation(const kernel_metrics&);
 
 /// @brief Parse the cuda metrics file to store the values in variables
@@ -363,7 +366,7 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
     return metric_map;
 }
 
-void load_data_memory_flow(const kernel_metrics &all_metrics)
+json load_data_memory_flow(const kernel_metrics &all_metrics)
 {
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
 
@@ -385,9 +388,21 @@ void load_data_memory_flow(const kernel_metrics &all_metrics)
     std::cout << "L2 Cache miss % (due to L1 load data request) " << 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate << std::endl;
     auto requests_l2_dram_ld = (requests_l1_l2_global_ld + requests_l1_l2_local_ld) * (1 - (all_metrics.metrics_list.lts__t_sector_op_read_hit_rate / 100));
     std::cout << "L2 cache ---- request load data ----> DRAM " << requests_l2_dram_ld << " bytes" << std::endl;
+
+    return {
+        {"num_loads", all_metrics.metrics_list.sm__sass_inst_executed_op_global_ld},
+        {"global_to_l1_bytes", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld},
+        {"global_to_l1_cache_miss_perc", all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate},
+        {"global_l1_to_l2_bytes", requests_l1_l2_global_ld},
+        {"local_to_l1_bytes", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_local_op_ld},
+        {"local_to_l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate},
+        {"local_l1_to_l2_bytes", requests_l1_l2_local_ld},
+        {"l1_to_l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
+        {"l2_to_dram_bytes", requests_l2_dram_ld}
+    };
 }
 
-void atomic_data_memory_flow(const kernel_metrics &all_metrics)
+json atomic_data_memory_flow(const kernel_metrics &all_metrics)
 {
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
 
@@ -407,9 +422,18 @@ void atomic_data_memory_flow(const kernel_metrics &all_metrics)
 
     std::cout << "Incase using shared memory for atomics . . . " << std::endl;
     std::cout << "Kernel ---- request atomic data ----> Shared Memory " << all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom << " bytes" << std::endl;
+
+    return {
+        {"global_to_l1_cache_miss_perc", 100 - l1_red_atom_hit_rate},
+        {"l1_to_l2_cache_miss_perc", 100 - lts_red_atom_hit_rate},
+        {"l1_to_l2__bytes", requests_l1_l2_global_red},
+        {"l2_to_dram_bytes", requests_l2_dram_red},
+        {"global_to_l1_red_atom_bytes", 32 * red_atom_requests},
+        {"kernel_to_shared_bytes", all_metrics.metrics_list.sm__sass_data_bytes_mem_shared_op_atom}
+    };
 }
 
-void texture_data_memory_flow(const kernel_metrics &all_metrics)
+json texture_data_memory_flow(const kernel_metrics &all_metrics)
 {
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
 
@@ -425,15 +449,28 @@ void texture_data_memory_flow(const kernel_metrics &all_metrics)
     std::cout << "L2 Cache miss % (due to L1 load data request) " << 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate << std::endl; // no metrics found for texture-only L2 cache hit %
     auto requests_l2_dram_ld = (requests_l1_l2_texture_ld) * (1 - (all_metrics.metrics_list.lts__t_sector_op_read_hit_rate / 100));
     std::cout << "L2 cache ---- request load data ----> DRAM " << requests_l2_dram_ld << " bytes" << std::endl;
+
+    return {
+        {"kernel_to_tex_instr", all_metrics.metrics_list.sm__sass_inst_executed_op_texture},
+        {"tex_to_l1_bytes", all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_texture},
+        {"tex_to_l1_cache_miss_perc", 100 - all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate},
+        {"l1_to_l2_cache_miss_perc", 100 - all_metrics.metrics_list.lts__t_sector_op_read_hit_rate},
+        {"l1_to_l2__bytes", requests_l1_l2_texture_ld},
+        {"l2_to_dram_bytes", requests_l2_dram_ld},
+    };
 }
 
-void shared_data_memory_flow(const kernel_metrics &all_metrics)
+json shared_data_memory_flow(const kernel_metrics &all_metrics)
 {
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
 
     // ---------------- SHARED MEMORY LOAD OPERATIONS ---------------------
     // involves shared memory
     std::cout << "Kernel ---- request load data ----> Shared Memory " << all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld << " instructions" << std::endl;
+
+    return {
+        {"shared_mem_load_operations", all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld}
+    };
 }
 
 void bypass_L1(const kernel_metrics &all_metrics)
@@ -496,12 +533,15 @@ void coalescing_efficiency(const kernel_metrics &all_metrics)
     }
 }
 
-void shared_memory_bank_conflict(const kernel_metrics &all_metrics)
+json shared_memory_bank_conflict(const kernel_metrics &all_metrics)
 {
+    json result;
     // std::cout << "For kernel name: " << all_metrics.kernel_name << std::endl;
     // https://github.com/Kobzol/hardware-effects-gpu/blob/master/bank-conflicts/README.md
     // Incase of bank conflicts, the shared memory efficiency will be quite low
     std::cout << "Shared memory efficiency for load operations: " << all_metrics.metrics_list.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld << " %" << std::endl;
+    result["shared_mem_load_efficiency_perc"] = all_metrics.metrics_list.smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld;
+    result["shared_mem_data_requests"] = all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld;
     // Incase of n-way bank conflict, shared_load_transactions_per_request should be n
     if (all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld == 0)
     {
@@ -511,7 +551,10 @@ void shared_memory_bank_conflict(const kernel_metrics &all_metrics)
     {
         double shared_load_transactions_per_request = std::floor(1.0 * all_metrics.metrics_list.l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld / all_metrics.metrics_list.sm__sass_inst_executed_op_shared_ld);
         (shared_load_transactions_per_request == 1) ? std::cout << "No bank conflicts detected" << std::endl : std::cout << shared_load_transactions_per_request << "-way bank conflict detected in shared memory acccess" << std::endl;
+        result["bank_conflict"] = (shared_load_transactions_per_request == 1) ? 0 : shared_load_transactions_per_request;
     }
+
+    return result;
 }
 
 // Used/unused metric analysis

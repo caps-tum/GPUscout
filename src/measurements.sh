@@ -9,6 +9,7 @@ if [ "$dry_run" = false ]; then
 
     # Extract all the metrics in one pass
     ncu -f --csv --log-file ${run_prefix}_metrics_list --print-units base --print-kernel-base mangled --metrics \
+smsp__warps_active.sum,\
 smsp__warp_issue_stalled_barrier_per_warp_active.pct,\
 smsp__warp_issue_stalled_membar_per_warp_active.pct,\
 smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct,\
@@ -73,47 +74,58 @@ echo "==========================================================================
 echo "Combining above results for register spilling analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_register_spilling.cpp -o merge_analysis_register_spilling
 # nvcc --generate-line-info merge_analysis_register_spilling.cpp -o merge_analysis_register_spilling -lcuda -l:libcufilt.a
-./merge_analysis_register_spilling ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt
+./merge_analysis_register_spilling ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for using __restrict__ analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_use_restrict.cpp -o merge_analysis_use_restrict
-./merge_analysis_use_restrict ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${executable_filename}-sass.txt
+./merge_analysis_use_restrict ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${executable_filename}-sass.txt ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for vectorization analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_vectorization.cpp -o merge_analysis_vectorization
-./merge_analysis_vectorization ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${executable_filename}-sass.txt
+./merge_analysis_vectorization ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${executable_filename}-sass.txt ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for global atomics analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_global_atomics.cpp -o merge_analysis_global_atomics
-./merge_analysis_global_atomics ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./merge_analysis_global_atomics ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for warp divergence analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_warp_divergence.cpp -o merge_analysis_warp_divergence
-./merge_analysis_warp_divergence ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./merge_analysis_warp_divergence ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for using texture memory analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_use_texture.cpp -o merge_analysis_use_texture
-./merge_analysis_use_texture ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./merge_analysis_use_texture ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for using shared memory analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_use_shared.cpp -o merge_analysis_use_shared
-./merge_analysis_use_shared ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./merge_analysis_use_shared ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for datatype conversion analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_datatype_conversion.cpp -o merge_analysis_datatype_conversion
-./merge_analysis_datatype_conversion ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./merge_analysis_datatype_conversion ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${json} ${gpuscout_output_dir}
 
 echo "======================================================================================================"
 echo "Combining above results for deadlock detection . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_deadlock_detection.cpp -o merge_analysis_deadlock_detection
-./merge_analysis_deadlock_detection ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./merge_analysis_deadlock_detection ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${json} ${gpuscout_output_dir}
+
+# Merge all individual JSON files
+
+if [ "$json" = true ]; then
+
+echo "======================================================================================================"
+echo "Generating JSON output . . . . . . . . . . . . . . . "
+
+./save_to_json ${gpuscout_output_dir} ${gpuscout_tmp_dir}/result-${run_prefix} ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt
+
+fi
 
 echo "======================================================================================================"
 

@@ -9,11 +9,12 @@ usage() {
     echo "  -e | --executable : Path to the executable (compiled with nvcc)."
     echo "  -c | --cubin : Path to the cubin file (compiled with nvcc, with -cubin). If left empty, the same path as executable and the name cubin-<executable> will be assumed."
     echo "  -a | --args : Arguments for running the binary. e.g. --args=\"64 2 2 temp_64 power_64 output_64.txt\""
+    echo "  -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)"
     exit 1
 }
 
 # Parse command-line options
-options=$(getopt -o hve:c:a: -l help,dry_run,verbose,executable:,cubin:,args: -- "$@")
+options=$(getopt -o hve:c:a:j -l help,dry_run,verbose,executable:,cubin:,args:,json -- "$@")
 
 if [ $? -ne 0 ]; then
     echo "Error: Invalid option."
@@ -24,6 +25,7 @@ eval set -- "$options"
 
 dry_run=false
 verbose=false
+json=false
 executable=""
 cubin=""
 args=""
@@ -50,6 +52,10 @@ while true; do
             ;;
         -v | --verbose)
             verbose=true
+            shift
+            ;;
+         -j | --json)
+            json=true
             shift
             ;;
         --)
@@ -93,10 +99,15 @@ fi
 
 gpuscout_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 gpuscout_tmp_dir="${gpuscout_dir}/tmp-gpuscout"
+gpuscout_output_dir="${gpuscout_tmp_dir}/output"
 # Save metrics in a seperate directory
 echo "======================================================================================================"
 echo "==== Creating GPUscout TMP directory for storing metrics: ${gpuscout_tmp_dir}"
 mkdir -p ${gpuscout_tmp_dir}
+
+if [ "$json" = true ]; then
+    mkdir -p ${gpuscout_output_dir}
+fi
 
 # Note: when you compile the code with nvcc, create 2 executables
 # 1. without -cubin flag: <executable name>
@@ -107,6 +118,7 @@ echo "==== Cubin:      $cubin"
 echo "==== Arguments for the executable file: \"$args\""
 echo "==== Dry-run: $dry_run"
 echo "==== Verbose: $verbose"
+echo "==== JSON Output: $json"
 echo "======================================================================================================"
 
 
@@ -207,6 +219,8 @@ source ${gpuscout_dir}/analysis/measurements.sh
 
 # Exit
 echo -e "Profiling complete! Starting cleanup . . . . . . . . . . . . . . . . . . . ."
+
+rm -rf ${gpuscout_output_dir}
 
 # Remove the PC sampling files generate before release/production, else keep them for debug
 # rm $PWD/sampling_utilities/sampling_continuous/*_pcsampling_*.dat

@@ -10,6 +10,9 @@
 #include "parser_sass_divergence.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
+#include "utilities/json.hpp"
+
+using json = nlohmann::json;
 
 void print_stalls_percentage(const pc_issue_samples &index)
 {
@@ -38,10 +41,16 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param branch_target_map Includes target branch information
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, int> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
+json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, int> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map)
 {
+    json result;
+
     for (auto [k_sass, v_sass] : divergence_analysis_map)
     {
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
         // Fix for blank kernel name appearing in the analysis_map
         if (k_sass == "")
         {
@@ -51,9 +60,16 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
         std::cout << "--------------------- Warp divergence detection analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
         for (const auto &index_sass : v_sass)
         {
+            json line_result;
+
             if (index_sass.line_number != branch_target_map[index_sass.target_branch]) // branches that has target branch in the same line numbers are not considered as conditional branching
             {
                 std::cout << "Conditional branching detected in line number " << index_sass.line_number << " of your code, with target branch: " << index_sass.target_branch << " (target branch starts at line number: " << branch_target_map[index_sass.target_branch] << ")" << std::endl;
+                line_result = {
+                   {"line_number", index_sass.line_number} ,
+                   {"target_branch", index_sass.target_branch},
+                   {"target_branch_start_line_number", branch_target_map[index_sass.target_branch]},
+                };
 
                 // Map kernel with the PC Stall map
                 for (auto [k_pc, v_pc] : pc_stall_map)
@@ -71,6 +87,8 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                     }
                 }
             }
+            if (!line_result.is_null())
+                kernel_result["occurrences"].push_back(line_result);
         }
 
         // Map kernel with metrics collected
@@ -87,9 +105,15 @@ void merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                 {
                     std::cout << "INFO  ::  No branches are diverging in your code" << std::endl;
                 }
+                kernel_result["metrics"] = {
+                    {"branch_divergence_perc", branch_divergence_percent}
+                };
             }
         }
+        result[k_sass] = kernel_result;
     }
+
+    return result;
 }
 
 int main(int argc, char **argv)
@@ -105,5 +129,16 @@ int main(int argc, char **argv)
     std::string filename_metrics = argv[5];
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(filename_metrics);
 
-    merge_analysis_divergence(divergence_analysis_map, branch_target_map, pc_stall_map, metric_map);
+    int save_as_json = std::strcmp(argv[6], "true") == 0;
+    std::string json_output_dir = argv[7];
+
+    json result = merge_analysis_divergence(divergence_analysis_map, branch_target_map, pc_stall_map, metric_map);
+
+    if (save_as_json)
+    {
+        std::ofstream json_file;
+        json_file.open(json_output_dir + "/warp_divergence.json");
+        json_file << result.dump(4);
+        json_file.close();
+    }
 }

@@ -75,6 +75,7 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                         std::cout << "WARNING  ::  Use vectorized load for register " << index_sass.base << ", in line number " << index_sass.line_number << " of your code" << std::endl;
                         std::cout << "Register " << index_sass.base << " in line number " << index_sass.line_number << " of your code has " << index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0) << " adjacent memory accesses" << std::endl;
                         line_result = {
+                            {"severity", "WARNING"},
                             {"line_number", index_sass.line_number},
                             {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
@@ -97,6 +98,7 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                             std::cout << "INFO  ::  Using vectorized load for register " << index_sass.base << ", in line number " << index_sass.line_number << " of your code, might not boost performance" << std::endl;
                         }
                         line_result = {
+                            {"severity", "INFO"},
                             {"line_number", index_sass.line_number},
                             {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
@@ -162,8 +164,6 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
             {
                 std::cout << "If you are using non-vectorized load/store, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "INFO  ::  Using vectorized load increases the register pressure and hence might affect occupancy. Occupancy achieved: " << v_metric.metrics_list.sm__warps_active << " %" << std::endl;
-
-                auto global_data_per_instruction = global_data_per_instr(metric_map[k_metric]);
             }
         }
 

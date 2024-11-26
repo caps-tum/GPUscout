@@ -89,6 +89,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                     {
                         std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already using asynchronous global to shared memory copy at line number " << index_sass.line_number << " of your code" << std::endl;
                         line_result = {
+                            {"severity", "INFO"},
                             {"line_number", index_sass.line_number},
                             {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.register_number},
@@ -102,6 +103,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                     {
                         std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already storing data in shared memory at line number " << index_sass.line_number << " of your code" << std::endl;
                         line_result = {
+                            {"severity", "INFO"},
                             {"line_number", index_sass.line_number},
                             {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.register_number},
@@ -124,6 +126,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                         {
                             std::cout << "Register number " << index_sass.register_number << " at line number " << index_sass.line_number << " of your code has " << index_sass.register_load_count << " total global load counts and " << index_sass.register_operation_count << " computation instruction counts" << std::endl;
                             line_result = {
+                                {"severity", "WARNING"},
                                 {"line_number", index_sass.line_number},
                                 {"pc_offset", index_sass.pcOffset},
                                 {"register", index_sass.register_number},

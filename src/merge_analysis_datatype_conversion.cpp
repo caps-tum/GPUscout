@@ -65,6 +65,7 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             {
                 std::cout << std::get<0>(i) << ", ";
                 kernel_result["occurrences"].push_back({
+                    {"severity", "WARNING"},
                     {"line_number", std::get<0>(i)},
                     {"pc_offset", std::get<1>(i)},
                     {"type", "F2F"}
@@ -84,6 +85,7 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             {
                 std::cout << std::get<0>(i) << ", ";
                 kernel_result["occurrences"].push_back({
+                    {"severity", "WARNING"},
                     {"line_number", std::get<0>(i)},
                     {"pc_offset", std::get<1>(i)},
                     {"type", "I2F"}
@@ -103,6 +105,7 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             {
                 std::cout << std::get<0>(i) << ", ";
                 kernel_result["occurrences"].push_back({
+                    {"severity", "WARNING"},
                     {"line_number", std::get<0>(i)},
                     {"pc_offset", std::get<1>(i)},
                     {"type", "F2I"}

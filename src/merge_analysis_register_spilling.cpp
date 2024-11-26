@@ -65,6 +65,7 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
             // Find the register spill info from the SASS analysis
             std::cout << "WARNING   ::  Spill detected in line number " << index_sass.line_number << " of your code. Base register number " << index_sass.register_number << " spilled in " << lmem_operation_type_string[index_sass.op_type] << " operation" << std::endl;
             json line_result = {
+                {"severity", "WARNING"},
                 {"line_number", index_sass.line_number},
                 {"register", index_sass.register_number},
                 {"pc_offset", index_sass.pcOffset},

@@ -70,7 +70,21 @@ memory_l1_wavefronts_shared_ideal,\
 sm__sass_inst_executed_op_texture.sum,\
 l1tex__t_sectors_pipe_tex_mem_texture.sum,\
 l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate.pct,\
-smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct \
+smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct,\
+l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum,\
+l1tex__t_sectors_pipe_tex_mem_surface_op_ld.sum,\
+l1tex__t_sectors_pipe_tex_mem_surface_op_st.sum,\
+l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate.pct,\
+l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate.pct,\
+l1tex__t_sector_pipe_lsu_mem_local_op_st_hit_rate.pct,\
+l1tex__t_sector_pipe_lsu_mem_global_op_st_hit_rate.pct,\
+lts__t_sector_op_write_hit_rate.pct,\
+lts__t_sector_hit_rate.pct,\
+sm__sass_inst_executed_op_global_st.sum,\
+sm__sass_inst_executed_op_local_st.sum,\
+smsp__inst_executed_op_surface_ld.sum,\
+smsp__inst_executed_op_surface_st.sum,\
+smsp__inst_executed_op_ldgsts.sum \
 \
 \"${executable_with_args}\"
 

@@ -86,8 +86,8 @@ int main(int argc, char **argv)
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(metrics_file);
     json json_metrics = {};
     for (auto [k_metric, v_metric] : metric_map) {
-        json_metrics[v_metric.kernel_name] = v_metric.metrics_list;
         json_metrics[v_metric.kernel_name] = total_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name]["misc"] = v_metric.metrics_list;
     }
     result["metrics"] = json_metrics;
 

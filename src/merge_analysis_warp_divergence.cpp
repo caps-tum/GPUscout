@@ -68,6 +68,7 @@ json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                 line_result = {
                    {"severity", "WARNING"},
                    {"line_number", index_sass.line_number} ,
+                   {"pc_offset", index_sass.pcOffset},
                    {"target_branch", index_sass.target_branch},
                    {"target_branch_start_line_number", branch_target_map[index_sass.target_branch]},
                 };

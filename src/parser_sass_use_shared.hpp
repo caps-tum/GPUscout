@@ -56,8 +56,11 @@ struct register_access
     int line_number;
     std::string register_number;
     int register_load_count;
+    std::vector<std::string> register_load_pc_offsets;
     int register_operation_count;
+    std::vector<std::string> register_operation_pc_offsets;
     std::string target_branch;
+    std::string pcOffset;
     std::string LDG_pcOffset;      // pcOffset of the load instruction of the register
     int count_to_shared_mem_store; // number of instructions (or cycles) between LDG and STS
     bool shared_mem_use;           // turn flag ON if the register contents are used in shared memory
@@ -204,6 +207,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                 if (register_match != register_vec.end())
                 {
                     register_match->register_load_count++; // if register present, increase the load count for that register
+                    register_match->register_load_pc_offsets.push_back(pcoffset_sass(line));
                 }
                 else // else create a new register object and add to the register_vector
                 {
@@ -213,6 +217,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                     register_obj.register_operation_count = 0;
                     register_obj.target_branch = current_target_branch;
                     register_obj.LDG_pcOffset = pcoffset_sass(line);
+                    register_obj.pcOffset = pcoffset_sass(line);
                     register_obj.count_to_shared_mem_store = 0;
                     register_vec.push_back(register_obj);
                 }
@@ -231,6 +236,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                     if (register_match != register_vec.end())
                     {
                         register_match->register_operation_count++; // if register is already present in the register_vec, then increase operation count
+                        register_match->register_operation_pc_offsets.push_back(pcoffset_sass(line));
                     }
                 }
             }
@@ -271,6 +277,7 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
                     register_obj.register_operation_count = 0;
                     register_obj.target_branch = current_target_branch;
                     register_obj.LDG_pcOffset = "LDGSTS";       // for async LDGSTS, label the pcOffset as different
+                    register_obj.pcOffset = pcoffset_sass(line);
                     register_obj.count_to_shared_mem_store = 0;
                     register_vec.push_back(register_obj);
                 }

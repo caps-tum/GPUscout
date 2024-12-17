@@ -93,6 +93,7 @@ json merge_analysis_restrict(std::unordered_map<std::string, std::vector<registe
                 line_result = {
                     {"severity", index_sass.read_only_mem_used ? "INFO" : "WARNING"},
                     {"line_number", index_sass.line_number},
+                    {"pc_offset", index_sass.pcOffset},
                     {"register", index_sass.register_number},
                     {"read_only_memory_used", index_sass.read_only_mem_used}
                 };

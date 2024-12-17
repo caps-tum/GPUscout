@@ -1,4 +1,4 @@
-/**
+/std::get<0>(i)**
  * Merge analysis for using Shared memory
  * SASS analysis - shared usage (instruction LDG) -> output code line number and if the load is present in a for- loop
  * PC Sampling analysis - pc stalls (instruction LDG) -> output stall reasons and percentage of stall
@@ -91,6 +91,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                         line_result = {
                             {"severity", "INFO"},
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.register_number},
                             {"uses_shared_memory", true},
                             {"uses_async_global_to_shared_memory_copy", true},
@@ -104,6 +105,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                         line_result = {
                             {"severity", "INFO"},
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.register_number},
                             {"uses_shared_memory", true},
                             {"uses_async_global_to_shared_memory_copy", false},
@@ -126,10 +128,13 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
                             line_result = {
                                 {"severity", "WARNING"},
                                 {"line_number", index_sass.line_number},
+                                {"pc_offset", index_sass.pcOffset},
                                 {"register", index_sass.register_number},
                                 {"uses_shared_memory", false},
                                 {"global_load_count", index_sass.register_load_count},
+                                {"global_load_pc_offsets", index_sass.register_load_pc_offsets},
                                 {"computation_instruction_count", index_sass.register_operation_count},
+                                {"computation_instruction_pc_offsets", index_sass.register_operation_pc_offsets},
                                 {"in_for_loop", j.inside_for_loop},
                             };
                             if (j.inside_for_loop)

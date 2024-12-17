@@ -134,6 +134,7 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
                 line_result = {
                     {"severity", "WARNING"},
                     {"line_number", index_sass.line_number},
+                    {"pc_offset", index_sass.pcOffset},
                     {"written_register", index_sass.write_to_register_number},
                     {"read_register", index_sass.load_from_register},
                     {"spatial_locality", multiple_reads_register_flag},

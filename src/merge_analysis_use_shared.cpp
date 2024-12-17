@@ -1,4 +1,4 @@
-/std::get<0>(i)**
+/**
  * Merge analysis for using Shared memory
  * SASS analysis - shared usage (instruction LDG) -> output code line number and if the load is present in a for- loop
  * PC Sampling analysis - pc stalls (instruction LDG) -> output stall reasons and percentage of stall

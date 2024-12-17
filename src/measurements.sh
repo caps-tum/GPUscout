@@ -7,9 +7,18 @@ echo "==========================================================================
 if [ "$dry_run" = false ]; then
     echo "Collecting NCU metrics . . . . . . . . . . . . . . . "
 
+    executable_with_args="$executable"
+
+    if [ ! -z "$args"]; then
+        executable_with_args="$executable $args"
+    fi
+
     # Extract all the metrics in one pass
     ncu -f --csv --log-file ${run_prefix}_metrics_list --print-units base --print-kernel-base mangled --metrics \
 smsp__warps_active.sum,\
+smsp__sass_inst_executed_op_global.sum,\
+smsp__sass_inst_executed.sum,\
+l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum,\
 smsp__warp_issue_stalled_barrier_per_warp_active.pct,\
 smsp__warp_issue_stalled_membar_per_warp_active.pct,\
 smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct,\
@@ -38,6 +47,7 @@ lts__t_sectors_op_write.sum,\
 smsp__inst_executed_op_local_ld.sum,\
 smsp__inst_executed_op_local_st.sum,\
 sm__sass_inst_executed_op_global_ld.sum,\
+sm__sass_inst_executed_op_local_ld.sum,\
 l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,\
 l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,\
 lts__t_sector_op_read_hit_rate.pct,\
@@ -61,8 +71,22 @@ sm__sass_inst_executed_op_texture.sum,\
 l1tex__t_sectors_pipe_tex_mem_texture.sum,\
 l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate.pct,\
 smsp__sass_average_data_bytes_per_wavefront_mem_shared_op_ld.pct,\
+l1tex__t_sectors_pipe_lsu_mem_local_op_st.sum,\
+l1tex__t_sectors_pipe_tex_mem_surface_op_ld.sum,\
+l1tex__t_sectors_pipe_tex_mem_surface_op_st.sum,\
+l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate.pct,\
+l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate.pct,\
+l1tex__t_sector_pipe_lsu_mem_local_op_st_hit_rate.pct,\
+l1tex__t_sector_pipe_lsu_mem_global_op_st_hit_rate.pct,\
+lts__t_sector_op_write_hit_rate.pct,\
+lts__t_sector_hit_rate.pct,\
+sm__sass_inst_executed_op_global_st.sum,\
+sm__sass_inst_executed_op_local_st.sum,\
+smsp__inst_executed_op_surface_ld.sum,\
+smsp__inst_executed_op_surface_st.sum,\
+smsp__inst_executed_op_ldgsts.sum \
 \
-\"${executable} ${args}\"
+\"${executable_with_args}\"
 
     mv ${run_prefix}_metrics_list ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
 fi
@@ -123,7 +147,7 @@ if [ "$json" = true ]; then
 echo "======================================================================================================"
 echo "Generating JSON output . . . . . . . . . . . . . . . "
 
-./save_to_json ${gpuscout_output_dir} ${gpuscout_tmp_dir}/result-${run_prefix} ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt
+./save_to_json ${gpuscout_output_dir} ${gpuscout_tmp_dir}/result-${run_prefix} ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
 
 fi
 

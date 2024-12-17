@@ -42,9 +42,12 @@ int main(int argc, char **argv)
     std::string sass_register_file = argv[4];
     std::string ptx_file = argv[5];
     std::string pc_samples_file = argv[6];
+    std::string metrics_file = argv[7];
 
     json result = {
+        {"kernels", json::object()},
         {"analyses", json::object()},
+        {"metrics", json::object()},
         {"stalls", json::object()},
         {"binary_files", {
             {"sass", ""},
@@ -79,6 +82,15 @@ int main(int argc, char **argv)
         }
         analysis_file.close();
     }
+
+    // Add metrics
+    std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(metrics_file);
+    json json_metrics = {};
+    for (auto [k_metric, v_metric] : metric_map) {
+        json_metrics[v_metric.kernel_name] = total_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name]["misc"] = v_metric.metrics_list;
+    }
+    result["metrics"] = json_metrics;
 
     // Add stall information to result file
     std::unordered_map<std::string, std::vector<pc_issue_samples>> stall_map = get_warp_stalls(pc_samples_file, sass_file, analysis_kind::ALL);

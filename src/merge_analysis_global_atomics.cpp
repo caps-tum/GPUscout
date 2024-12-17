@@ -59,7 +59,6 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
         }
 
         std::cout << "--------------------- Global atomics analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
-        kernel_result["global_atomics"] = v_sass.atom_global_count;
         if (v_sass.atom_global_count > 0)
         {
             std::cout << "WARNING  ::  Number of global atomic instructions in the ptx file: " << v_sass.atom_global_count << " detected" << std::endl;
@@ -78,7 +77,9 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
                                 kernel_result["occurrences"].push_back({
-                                    {"line_number", i},
+                                    {"severity", "WARNING"},
+                                    {"line_number", std::get<0>(i)},
+                                    {"line_number_raw", std::get<1>(i)},
                                     {"in_for_loop", k.inside_for_loop},
                                     {"is_global", true},
                                 });
@@ -93,7 +94,6 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
             std::cout << "INFO  ::  No global atomics detected in the ptx file" << std::endl;
         }
 
-        kernel_result["shared_atomics"] = v_sass.atom_shared_count;
         if (v_sass.atom_shared_count > 0)
         {
             std::cout << "INFO  ::  Number of shared atomic instructions in the ptx file: " << v_sass.atom_shared_count << " recorded." << std::endl;
@@ -112,7 +112,9 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                                     std::cout << "This atomic instruction is found inside a for-loop" << std::endl;
 
                                 kernel_result["occurrences"].push_back({
-                                    {"line_number", i},
+                                    {"severity", "INFO"},
+                                    {"line_number", std::get<0>(i)},
+                                    {"line_number_raw", std::get<1>(i)},
                                     {"in_for_loop", k.inside_for_loop},
                                     {"is_global", false},
                                 });
@@ -171,7 +173,7 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Data flow in memory for atomic operations" << std::endl;
-                json memory_flow_metrics = atomic_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check atomic/reduction operation)
+                atomic_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check atomic/reduction operation)
 
                 // copied global_mem_atomics_analysis from stalls_static_analysis_relation() method
                 std::cout << "Incase of using global atomics, check LG Throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active << " % per warp active" << std::endl;
@@ -179,10 +181,8 @@ json merge_analysis_global_shared_atomic(std::unordered_map<std::string, atomic_
                 std::cout << "INFO  ::  For high values of the above stalls, you should prefer using shared memory instead of global memory for atomics" << std::endl;
                 std::cout << "Incase of using shared atomics, check MIO throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active << " % per warp active" << std::endl;
                 kernel_result["metrics"] = {
-                    {"smsp__warp_issue_stalled_lg_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active},
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
-                    {"memory_flow", memory_flow_metrics}
+                    {"atom_global_count", v_sass.atom_global_count},
+                    {"atom_shared_count", v_sass.atom_shared_count},
                 };
             }
         }

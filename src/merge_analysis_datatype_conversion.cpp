@@ -65,7 +65,9 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             {
                 std::cout << i << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", i},
+                    {"severity", "WARNING"},
+                    {"line_number", std::get<0>(i)},
+                    {"pc_offset", std::get<1>(i)},
                     {"type", "F2F"}
                 });
             }
@@ -83,8 +85,9 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             {
                 std::cout << i << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", i},
-                    {"pc_offset", i},
+                    {"severity", "WARNING"},
+                    {"line_number", std::get<0>(i)},
+                    {"pc_offset", std::get<1>(i)},
                     {"type", "I2F"}
                 });
             }
@@ -102,8 +105,9 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             {
                 std::cout << i << ", ";
                 kernel_result["occurrences"].push_back({
-                    {"line_number", i},
-                    {"pc_offset", i},
+                    {"severity", "WARNING"},
+                    {"line_number", std::get<0>(i)},
+                    {"pc_offset", std::get<1>(i)},
                     {"type", "F2I"}
                 });
             }
@@ -122,11 +126,6 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 std::cout << "For F2F (32 to 64 bit) conversions, check Tex throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check MIO throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "For I2F and F2F (32 bit only) conversions, check Short Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active << " %" << std::endl;
-                kernel_result["metrics"] = {
-                    {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
-                    {"smsp__warp_issue_stalled_mio_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_mio_throttle_per_warp_active},
-                    {"smsp__warp_issue_stalled_short_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active}
-                };
             }
         }
 

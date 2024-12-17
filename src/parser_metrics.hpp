@@ -1,7 +1,7 @@
 /**
  * Metric analysis based on metric data collected from Nsight Compute CLI
  * Keep the number of metrics as less as possible to minimize tool overhead
- *
+ * 
  * @author Soumya Sen
  */
 
@@ -635,7 +635,6 @@ void atomic_data_memory_flow(const kernel_metrics &all_metrics)
     // involves shared memory, global memory, L1, L2, DRAM
     auto red_atom_requests = all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_red + all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_atom;
     std::cout << "Global memory ---- request reduction/atomic data ----> L1 cache " << 32 * red_atom_requests << " bytes" << std::endl;
-
     auto l1_red_atom_hit_rate = all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate + all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate;
     std::cout << "L1 Cache miss % (due to global memory atomic request) " << 100 - l1_red_atom_hit_rate << std::endl;
     auto requests_l1_l2_global_red = (32 * red_atom_requests) * (1 - (l1_red_atom_hit_rate / 100));

@@ -31,7 +31,6 @@ enum used_flag
 struct register_used
 {
     int line_number;
-    std::string pcOffset;
     std::string write_to_register_number;
     std::string load_from_register;
     std::set<unsigned long> load_from_register_unrolls;
@@ -70,18 +69,6 @@ std::string find_register_reduction(std::string line)
                                     { return remove_chars.find(c) != std::string::npos; }),
                      substr.end());
     }
-
-    return substr;
-}
-
-std::string get_pcoffset_sass(std::string line)
-{
-    //         /*00a0*/                   ISETP.GE.AND P1, PT, R2, c[0x0][0x168], PT ;         -> extract 00a0
-    std::string substr;
-
-    std::istringstream ss(line);
-    std::getline(ss, substr, '*');
-    std::getline(ss, substr, '*');
 
     return substr;
 }
@@ -199,11 +186,9 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                 {
                     register_obj.write_to_register_number = current_register;
                     register_obj.line_number = code_line_number;
-                    register_obj.pcOffset = get_pcoffset_sass(line);
                     register_obj.flag = NOT_USED;
 
                     // For a given register, If unroll distance is 4 for 32 bits, 8 for 64 bits and 16 for 128 bits => spatial locality of the data loaded
-                    // TODO: check if unrolls should not be reset before!!!
                     register_obj.load_from_register = read_register_pair(line).first;
                     register_obj.load_from_register_unrolls.insert(read_register_pair(line).second);
                     register_obj.register_unroll_pcOffsets.insert(get_pcoffset_sass(line));

@@ -1,6 +1,6 @@
 /**
  * SASS code analysis to detect use of vectorized load
- *
+ * 
  * @author Soumya Sen
 */
 
@@ -37,10 +37,8 @@ struct load_counter
 struct register_data
 {
     int line_number;
-    std::string pcOffset;
     std::string base;
     std::vector<unsigned long> unrolls;
-    std::vector<std::string> unroll_pc_offsets;
     load_type reg_load_type;
 };
 
@@ -88,18 +86,6 @@ std::pair<std::string, unsigned long> read_register_pair(const std::string &line
 
     std::pair<std::string, unsigned long> register_pair = (register_unroll != "") ? std::make_pair(register_base, std::stoul(register_unroll, nullptr, 16)) : std::make_pair(register_base, (ulong)0);
     return register_pair;
-}
-
-std::string get_pcoffset_sass(std::string line)
-{
-    //         /*00a0*/                   ISETP.GE.AND P1, PT, R2, c[0x0][0x168], PT ;         -> extract 00a0
-    std::string substr;
-
-    std::istringstream ss(line);
-    std::getline(ss, substr, '*');
-    std::getline(ss, substr, '*');
-
-    return substr;
 }
 
 /// @brief SASS analysis if vectorized load can be used
@@ -172,10 +158,8 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
                         register_obj.reg_load_type = VEC_128;
                     }
                     register_obj.line_number = code_line_number;
-                    register_obj.pcOffset = get_pcoffset_sass(line);
                     register_obj.base = register_pair.first;
                     register_obj.unrolls.push_back(register_pair.second);
-                    register_obj.unroll_pc_offsets.push_back(get_pcoffset_sass(line));
                     register_vec.push_back(register_obj);
                 }
                 else // line present
@@ -195,17 +179,14 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
                             register_obj.reg_load_type = VEC_128;
                         }
                         register_obj.line_number = code_line_number;
-                        register_obj.pcOffset = get_pcoffset_sass(line);
                         register_obj.base = register_pair.first;
                         register_obj.unrolls.push_back(register_pair.second);
-                        register_obj.unroll_pc_offsets.push_back(get_pcoffset_sass(line));
                         register_vec.push_back(register_obj);
                     }
                     else // line and base present
                     {
                         // Add the unroll part
                         base_match->unrolls.push_back(register_pair.second);
-                        base_match->unroll_pc_offsets.push_back(get_pcoffset_sass(line));
                     }
                 }
             }

@@ -54,7 +54,8 @@ int main(int argc, char **argv)
             {"sass_registers", ""},
             {"ptx", ""},
         }},
-        {"source_files", json::object()}
+        {"source_files", json::object()},
+        {"kernels", json::object()}
     };
 
     // Add individual analysis results to result file

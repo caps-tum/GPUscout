@@ -13,6 +13,7 @@
 #include "parser_liveregisters.hpp"
 #include "utilities/json.hpp"
 #include <ostream>
+#include <string>
 
 using json = nlohmann::json;
 
@@ -43,7 +44,7 @@ void print_stalls_percentage(const pc_issue_samples &index)
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
 /// @param live_register_map Currently used (or live) register count denoting register pressure
-json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<local_memory_counter>> spilling_analysis_map, std::unordered_map<std::string, std::vector<track_register_instruction>> track_register_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map)
+json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<local_memory_counter>> spilling_analysis_map, std::unordered_map<std::string, std::vector<track_register_instruction>> track_register_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, std::unordered_map<std::string, std::vector<live_registers>> live_register_map, int total_SM)
 {
     json result;
 
@@ -140,7 +141,6 @@ json merge_analysis_register_spill(std::unordered_map<std::string, std::vector<l
                 std::cout << "For register spilling, check Long Scoreboard stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "For register spilling, check LG Throttle stalls: " << v_metric.metrics_list.smsp__warp_issue_stalled_lg_throttle_per_warp_active << " % per warp active" << std::endl;
                 auto local_load_store = v_metric.metrics_list.smsp__inst_executed_op_local_ld + v_metric.metrics_list.smsp__inst_executed_op_local_st;
-                int total_SM = 144;
                 auto estimated_l2_queries_lmem_allSM = 2 * 4 * total_SM * ((1 - (v_metric.metrics_list.l1tex__t_sector_hit_rate / 100)) * local_load_store);
                 auto total_l2_queries = v_metric.metrics_list.lts__t_sectors_op_read + v_metric.metrics_list.lts__t_sectors_op_write + v_metric.metrics_list.lts__t_sectors_op_atom + v_metric.metrics_list.lts__t_sectors_op_red;
                 auto l2_queries_lmem_percent = estimated_l2_queries_lmem_allSM / total_l2_queries;
@@ -175,8 +175,9 @@ int main(int argc, char **argv)
 
     int save_as_json = std::strcmp(argv[7], "true") == 0;
     std::string json_output_dir = argv[8];
+    int sm_count = std::stoi(argv[9]);
 
-    json result = merge_analysis_register_spill(spilling_analysis_map, track_register_map, pc_stall_map, metric_map, live_register_map);
+    json result = merge_analysis_register_spill(spilling_analysis_map, track_register_map, pc_stall_map, metric_map, live_register_map, sm_count);
 
     if (save_as_json)
     {

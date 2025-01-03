@@ -98,7 +98,7 @@ echo "==========================================================================
 echo "Combining above results for register spilling analysis . . . . . . . . . . . . . . . "
 #g++ -std=c++17 ../merge_analysis_register_spilling.cpp -o merge_analysis_register_spilling
 # nvcc --generate-line-info merge_analysis_register_spilling.cpp -o merge_analysis_register_spilling -lcuda -l:libcufilt.a
-./merge_analysis_register_spilling ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${json} ${gpuscout_output_dir}
+./merge_analysis_register_spilling ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${json} ${gpuscout_output_dir} ${sms}
 
 echo "======================================================================================================"
 echo "Combining above results for using __restrict__ analysis . . . . . . . . . . . . . . . "
@@ -147,7 +147,7 @@ if [ "$json" = true ]; then
 echo "======================================================================================================"
 echo "Generating JSON output . . . . . . . . . . . . . . . "
 
-./save_to_json ${gpuscout_output_dir} ${gpuscout_tmp_dir}/result-${run_prefix} ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
+./save_to_json ${gpuscout_output_dir} ${gpuscout_tmp_dir}/result-${run_prefix} ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${sms}
 
 fi
 

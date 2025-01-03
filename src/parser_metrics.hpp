@@ -492,7 +492,7 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
     return metric_map;
 }
 
-json total_memory_flow(const kernel_metrics &all_metrics) 
+json total_memory_flow(const kernel_metrics &all_metrics, int total_SM) 
 {
     auto global_loads_l1_to_l2_bytes = (32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld) * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate / 100));
     auto global_stores_l1_to_l2_bytes = (32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_st) * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_st_hit_rate / 100));
@@ -521,7 +521,6 @@ json total_memory_flow(const kernel_metrics &all_metrics)
     auto global_data_per_instr_bytes = (32 * (all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_st + all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_ld)) / all_metrics.metrics_list.smsp__sass_inst_executed;
 
     auto local_load_store = all_metrics.metrics_list.smsp__inst_executed_op_local_ld + all_metrics.metrics_list.smsp__inst_executed_op_local_st;
-    int total_SM = 144; // TODO: this should be editable
     auto estimated_l2_queries_lmem_allSM = 2 * 4 * total_SM * ((1 - (all_metrics.metrics_list.l1tex__t_sector_hit_rate / 100)) * local_load_store);
     auto total_l2_queries = all_metrics.metrics_list.lts__t_sectors_op_read + all_metrics.metrics_list.lts__t_sectors_op_write + all_metrics.metrics_list.lts__t_sectors_op_atom + all_metrics.metrics_list.lts__t_sectors_op_red;
     auto l2_queries_lmem_percent = estimated_l2_queries_lmem_allSM / total_l2_queries;

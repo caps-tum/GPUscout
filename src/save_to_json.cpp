@@ -43,6 +43,7 @@ int main(int argc, char **argv)
     std::string ptx_file = argv[5];
     std::string pc_samples_file = argv[6];
     std::string metrics_file = argv[7];
+    int sm_count = std::stoi(argv[8]);
 
     json result = {
         {"kernels", json::object()},
@@ -87,7 +88,7 @@ int main(int argc, char **argv)
     std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(metrics_file);
     json json_metrics = {};
     for (auto [k_metric, v_metric] : metric_map) {
-        json_metrics[v_metric.kernel_name] = total_memory_flow(v_metric);
+        json_metrics[v_metric.kernel_name] = total_memory_flow(v_metric, sm_count);
         json_metrics[v_metric.kernel_name]["misc"] = v_metric.metrics_list;
     }
     result["metrics"] = json_metrics;

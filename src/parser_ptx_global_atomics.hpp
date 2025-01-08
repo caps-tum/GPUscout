@@ -89,8 +89,7 @@ int get_branch_line_number_from_ptx(std::string line)
 
 /// @brief Detects global and shared atomics by parsing PTX file
 /// @param filename Decoded PTX file
-/// @return Tuple of two maps, first map includes global and shared atomic count
-/// and second map includes target branch information
+/// @return Tuple of two maps, first map includes global and shared atomic count and second map includes target branch information
 std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<std::string, std::vector<branch_counter>>> global_mem_atomics_analysis(const std::string &filename) {
 
     std::string line;
@@ -231,8 +230,9 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
 
             counter_map[kernel_name] = counter_obj;
         }
-    } else
-    std::cout << "Could not open the file: " << filename << std::endl;
+    }
+    else
+        std::cout << "Could not open the file: " << filename << std::endl;
 
     // std::cout << "Kernel name: _Z4HistPiiPfi, " << "Global atomics: " <<
     // counter_map["_Z4HistPiiPfi"].atom_global_count << std::endl; std::cout <<
@@ -247,12 +247,10 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     //     std::cout << "Shared atomic line number: " << i << std::endl;
     // }
 
-    // for (const auto& k :
-    // branch_map["_Z28histogram_gmem_atomics_spillPK7IN_TYPEiiPj"])
+    // for (const auto& k : branch_map["_Z28histogram_gmem_atomics_spillPK7IN_TYPEiiPj"])
     // {
     //     for (const auto& l : k.atom_global_line_number)
-    //     std::cout << l << "," << k.target_branch_line_number << "," <<
-    //     k.inside_for_loop << std::endl;
+    //     std::cout << l << "," << k.target_branch_line_number << "," << k.inside_for_loop << std::endl;
     // }
 
     return std::make_tuple(counter_map, branch_map);

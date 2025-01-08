@@ -181,6 +181,8 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
                 line.erase(line.end() - 15, line.end());     // erase the last 15 character of the name of the kernel
                 kernel_name = line;
+                register_obj.register_unroll_pcOffsets.clear();
+                register_obj.load_from_register_unrolls.clear();
                 // std::cout << kernel_name << std::endl;
             }
 
@@ -203,7 +205,6 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                     register_obj.flag = NOT_USED;
 
                     // For a given register, If unroll distance is 4 for 32 bits, 8 for 64 bits and 16 for 128 bits => spatial locality of the data loaded
-                    // TODO: check if unrolls should not be reset before!!!
                     register_obj.load_from_register = read_register_pair(line).first;
                     register_obj.load_from_register_unrolls.insert(read_register_pair(line).second);
                     register_obj.register_unroll_pcOffsets.insert(get_pcoffset_sass(line));

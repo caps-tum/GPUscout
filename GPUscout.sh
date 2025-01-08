@@ -69,7 +69,6 @@ while true; do
             break
             ;;
         *)
-            echo $1
             echo "Error: Internal error during parsing."
             exit 1
             ;;

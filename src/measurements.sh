@@ -7,12 +7,6 @@ echo "==========================================================================
 if [ "$dry_run" = false ]; then
     echo "Collecting NCU metrics . . . . . . . . . . . . . . . "
 
-    executable_with_args="$executable"
-
-    if [ ! -z "$args"]; then
-        executable_with_args="$executable $args"
-    fi
-
     # Extract all the metrics in one pass
     ncu -f --csv --log-file ${run_prefix}_metrics_list --print-units base --print-kernel-base mangled --metrics \
 smsp__warps_active.sum,\
@@ -86,7 +80,7 @@ smsp__inst_executed_op_surface_ld.sum,\
 smsp__inst_executed_op_surface_st.sum,\
 smsp__inst_executed_op_ldgsts.sum \
 \
-\"${executable_with_args}\"
+${executable} ${args}
 
     mv ${run_prefix}_metrics_list ${gpuscout_tmp_dir}/${run_prefix}_metrics_list
 fi

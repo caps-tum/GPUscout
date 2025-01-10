@@ -184,6 +184,8 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                 register_obj.register_unroll_pcOffsets.clear();
                 register_obj.load_from_register_unrolls.clear();
                 // std::cout << kernel_name << std::endl;
+                register_obj.load_from_register_unrolls.clear();
+                register_obj.register_unroll_pcOffsets.clear();
             }
 
             if (line.find(" line ") != std::string::npos)

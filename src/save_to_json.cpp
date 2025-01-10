@@ -101,9 +101,11 @@ int main(int argc, char **argv)
 
         for (auto sample : v_pc) 
         {
+            std::stringstream hexstream;
+            hexstream << std::hex << sample.pc_offset;
             result["stalls"][k_pc].push_back({
                 {"line_number", sample.line_number},
-                {"pc_offset", std::format("{:x}", sample.pc_offset)},
+                {"pc_offset", hexstream.str()},
                 {"stalls", sample.stall_name_count_pair}
             });
         }

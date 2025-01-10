@@ -137,8 +137,8 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
 {
     std::vector<std::vector<std::string>> data;
 
-    int metric_name_index = -1;
-    int metric_value_index = -1;
+    int metric_name_index = 19;
+    int metric_value_index = 23;
 
     std::fstream file(filename, std::ios::in);
     if (file.is_open())

@@ -193,6 +193,7 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
 
     for (auto i : data)
     {
+        if (i.size() < metric_name_index || i.size() < metric_value_index) continue;
         // Clean the " character from the metric name and metric value and remove the dot (uses German format here)
         i[metric_name_index].erase(std::remove(i[metric_name_index].begin(), i[metric_name_index].end(), '"'), i[metric_name_index].end()); // metric name
         i[metric_value_index].erase(std::remove(i[metric_value_index].begin(), i[metric_value_index].end(), '"'), i[metric_value_index].end()); // metric value
@@ -482,9 +483,11 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
             metric_obj.smsp__inst_executed_op_ldgsts = std::stod(i[metric_value_index]);
         }
 
-        std::string id_name = i[9]; // key of the map is the name of the kernel
-        kernel_metrics kernel_obj = {std::stoi(i[1]), i[9], metric_obj};
-        metric_map[id_name] = kernel_obj;
+        if (i.size() > 9) {
+            std::string id_name = i[9]; // key of the map is the name of the kernel
+            kernel_metrics kernel_obj = {std::stoi(i[1]), i[9], metric_obj};
+            metric_map[id_name] = kernel_obj;
+        }
     }
     // std::cout << metric_obj.smsp__warp_issue_stalled_long_scoreboard_per_warp_active + metric_obj.smsp__warp_issue_stalled_wait_per_warp_active << std::endl;
     // std::cout << metric_map["bodyForce(Body *, float, int)"].kernel_name << " : " << metric_map["bodyForce(Body *, float, int)"].metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active + metric_map["bodyForce(Body *, float, int)"].metrics_list.smsp__warp_issue_stalled_wait_per_warp_active << std::endl;

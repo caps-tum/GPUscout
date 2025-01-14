@@ -148,9 +148,9 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
 
         // This will skip the first three lines (including the header)
         // https://stackoverflow.com/questions/33250380/c-skip-first-line-of-csv-file
-        std::getline(file, line);
-        std::getline(file, line);
-        std::getline(file, line);
+        while (line.length() == 0 || line[0] != '"') {
+            std::getline(file, line);
+        }
 
         // Find correct column of metric name and value
         std::stringstream header(line);

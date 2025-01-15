@@ -45,8 +45,6 @@ struct cuda_metrics
     double smsp__sass_inst_executed_op_global;
     double smsp__inst_executed_op_local_ld;
     double smsp__inst_executed_op_local_st;
-    double smsp__inst_executed_op_surface_ld;
-    double smsp__inst_executed_op_surface_st;
     double smsp__inst_executed_op_ldgsts;
     double smsp__sass_inst_executed;
     double sm__sass_inst_executed_op_global_red;
@@ -80,8 +78,6 @@ struct cuda_metrics
     double l1tex__t_sector_pipe_lsu_mem_global_op_st_hit_rate;
     double l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate;
     double l1tex__t_sector_pipe_lsu_mem_local_op_st_hit_rate;
-    double l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate;
-    double l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate;
     double l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate;
     double l1tex__t_sectors_pipe_lsu_mem_global_op_red;
     double l1tex__t_sectors_pipe_lsu_mem_global_op_atom;
@@ -89,8 +85,6 @@ struct cuda_metrics
     double l1tex__t_sectors_pipe_lsu_mem_global_op_st;
     double l1tex__t_sectors_pipe_lsu_mem_local_op_ld;
     double l1tex__t_sectors_pipe_lsu_mem_local_op_st;
-    double l1tex__t_sectors_pipe_tex_mem_surface_op_ld;
-    double l1tex__t_sectors_pipe_tex_mem_surface_op_st;
     double l1tex__t_sectors_pipe_tex_mem_texture;
     double l1tex__m_xbar2l1tex_read_sectors_mem_lg_op_ld_bandwidth;
     double l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld;
@@ -430,22 +424,6 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
         {
             metric_obj.l1tex__t_sectors_pipe_lsu_mem_local_op_st = std::stod(i[metric_value_index]);
         }
-        if (i[metric_name_index] == "l1tex__t_sectors_pipe_tex_mem_surface_op_ld.sum")
-        {
-            metric_obj.l1tex__t_sectors_pipe_tex_mem_surface_op_ld = std::stod(i[metric_value_index]);
-        }
-        if (i[metric_name_index] == "l1tex__t_sectors_pipe_tex_mem_surface_op_st.sum")
-        {
-            metric_obj.l1tex__t_sectors_pipe_tex_mem_surface_op_st = std::stod(i[metric_value_index]);
-        }
-        if (i[metric_name_index] == "l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate.pct")
-        {
-            metric_obj.l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate = std::stod(i[metric_value_index]);
-        }
-        if (i[metric_name_index] == "l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate.pct")
-        {
-            metric_obj.l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate = std::stod(i[metric_value_index]);
-        }
         if (i[metric_name_index] == "l1tex__t_sector_pipe_lsu_mem_local_op_st_hit_rate.pct")
         {
             metric_obj.l1tex__t_sector_pipe_lsu_mem_local_op_st_hit_rate = std::stod(i[metric_value_index]);
@@ -469,14 +447,6 @@ std::unordered_map<std::string, kernel_metrics> create_metrics(const std::string
         if (i[metric_name_index] == "sm__sass_inst_executed_op_local_st.sum")
         {
             metric_obj.sm__sass_inst_executed_op_local_st = std::stod(i[metric_value_index]);
-        }
-        if (i[metric_name_index] == "smsp__inst_executed_op_surface_ld.sum")
-        {
-            metric_obj.smsp__inst_executed_op_surface_ld = std::stod(i[metric_value_index]);
-        }
-        if (i[metric_name_index] == "smsp__inst_executed_op_surface_st.sum")
-        {
-            metric_obj.smsp__inst_executed_op_surface_st = std::stod(i[metric_value_index]);
         }
         if (i[metric_name_index] == "smsp__inst_executed_op_ldgsts.sum")
         {
@@ -503,14 +473,11 @@ json total_memory_flow(const kernel_metrics &all_metrics, int total_SM)
     auto local_loads_l1_to_l2_bytes = (32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_local_op_ld) * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_local_op_ld_hit_rate / 100));
     auto local_stores_l1_to_l2_bytes = (32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_local_op_st) * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_local_op_st_hit_rate / 100));
 
-    auto surface_loads_l1_to_l2_bytes = (32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_surface_op_ld) * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate / 100));
-    auto surface_stores_l1_to_l2_bytes = (32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_surface_op_st) * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate / 100));
-
     auto texture_loads_l1_to_l2_bytes = all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_texture * (1 - (all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate / 100));
     auto texture_loads_l2_to_dram_bytes = texture_loads_l1_to_l2_bytes * (1 - (all_metrics.metrics_list.lts__t_sector_op_read_hit_rate / 100));
 
-    auto loads_l2_to_dram_bytes = (global_loads_l1_to_l2_bytes + local_loads_l1_to_l2_bytes + surface_loads_l1_to_l2_bytes) * (1 - (all_metrics.metrics_list.lts__t_sector_op_read_hit_rate / 100));
-    auto stores_l2_to_dram_bytes = (global_stores_l1_to_l2_bytes + local_stores_l1_to_l2_bytes + surface_stores_l1_to_l2_bytes) * (1 - (all_metrics.metrics_list.lts__t_sector_op_write_hit_rate / 100));
+    auto loads_l2_to_dram_bytes = (global_loads_l1_to_l2_bytes + local_loads_l1_to_l2_bytes) * (1 - (all_metrics.metrics_list.lts__t_sector_op_read_hit_rate / 100));
+    auto stores_l2_to_dram_bytes = (global_stores_l1_to_l2_bytes + local_stores_l1_to_l2_bytes) * (1 - (all_metrics.metrics_list.lts__t_sector_op_write_hit_rate / 100));
 
     auto global_atomics_to_l1_bytes =32 * (all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_red + all_metrics.metrics_list.l1tex__t_sectors_pipe_lsu_mem_global_op_atom);
     auto global_atomics_l1_cache_hit_perc = all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_red_hit_rate + all_metrics.metrics_list.l1tex__t_sector_pipe_lsu_mem_global_op_atom_hit_rate;
@@ -588,20 +555,7 @@ json total_memory_flow(const kernel_metrics &all_metrics, int total_SM)
             {"loads_l1_cache_hit_perc", all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_texture_op_tex_hit_rate},
             {"loads_l1_to_l2_bytes", texture_loads_l1_to_l2_bytes},
             {"loads_l2_to_dram_bytes", texture_loads_l2_to_dram_bytes},
-        }},
-        {"surface", {
-            {"instructions", all_metrics.metrics_list.smsp__inst_executed_op_surface_ld + all_metrics.metrics_list.smsp__inst_executed_op_surface_st},
-            
-            {"loads_instructions", all_metrics.metrics_list.smsp__inst_executed_op_surface_ld},
-            {"loads_to_l1_bytes", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_surface_op_ld},
-            {"loads_l1_cache_hit_perc", all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_surface_op_ld_hit_rate},
-            {"loads_l1_to_l2_bytes", surface_loads_l1_to_l2_bytes},
-
-            {"stores_instructions", all_metrics.metrics_list.smsp__inst_executed_op_surface_st},
-            {"stores_to_l1_bytes", 32 * all_metrics.metrics_list.l1tex__t_sectors_pipe_tex_mem_surface_op_st},
-            {"stores_l1_cache_hit_perc", all_metrics.metrics_list.l1tex__t_sector_pipe_tex_mem_surface_op_st_hit_rate},
-            {"stores_l1_to_l2_bytes", surface_stores_l1_to_l2_bytes},
-        }},
+        }}
     };
 }
 

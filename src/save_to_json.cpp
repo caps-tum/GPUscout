@@ -9,13 +9,12 @@
 #include <map>
 #include <sstream>
 #include <string>
-#include <format>
 
 using json = nlohmann::json;
 
 // https://www.jeremymorgan.com/tutorials/c-programming/how-to-capture-the-output-of-a-linux-command-in-c/
 std::string get_demangled_kernel(std::string kernel_name) {
-    std::string command = "cu++filt -p " + kernel_name;
+    std::string command = "cu++filt " + kernel_name;
     std::string result;
     FILE* stream;
     const int max_buffer = 256;
@@ -42,9 +41,13 @@ int main(int argc, char **argv)
     std::string sass_register_file = argv[4];
     std::string ptx_file = argv[5];
     std::string pc_samples_file = argv[6];
+    std::string metrics_file = argv[7];
+    int sm_count = std::stoi(argv[8]);
 
     json result = {
+        {"kernels", json::object()},
         {"analyses", json::object()},
+        {"metrics", json::object()},
         {"stalls", json::object()},
         {"binary_files", {
             {"sass", ""},
@@ -80,6 +83,15 @@ int main(int argc, char **argv)
         analysis_file.close();
     }
 
+    // Add metrics
+    std::unordered_map<std::string, kernel_metrics> metric_map = create_metrics(metrics_file);
+    json json_metrics = {};
+    for (auto [k_metric, v_metric] : metric_map) {
+        json_metrics[v_metric.kernel_name] = total_memory_flow(v_metric, sm_count);
+        json_metrics[v_metric.kernel_name]["misc"] = v_metric.metrics_list;
+    }
+    result["metrics"] = json_metrics;
+
     // Add stall information to result file
     std::unordered_map<std::string, std::vector<pc_issue_samples>> stall_map = get_warp_stalls(pc_samples_file, sass_file, analysis_kind::ALL);
     for (auto [k_pc, v_pc] : stall_map) 
@@ -88,9 +100,11 @@ int main(int argc, char **argv)
 
         for (auto sample : v_pc) 
         {
+            std::stringstream hexstream;
+            hexstream << std::hex << sample.pc_offset;
             result["stalls"][k_pc].push_back({
                 {"line_number", sample.line_number},
-                {"pc_offset", std::format("{:x}", sample.pc_offset)},
+                {"pc_offset", hexstream.str()},
                 {"stalls", sample.stall_name_count_pair}
             });
         }

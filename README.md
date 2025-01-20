@@ -53,13 +53,13 @@ Usage: GPUscout [-h] [--dry-run] [--verbose] -e executable [-c directory] [--arg
     -e | --executable : Path to the executable (compiled with nvcc).
     -c | --cubin : Path to the cubin file (compiled with nvcc, with -cubin). If left empty, the same path as executable and the name cubin-<executable> will be assumed.
     -a | --args : Arguments for running the binary. e.g. --args=\"64 2 2 temp_64 power_64 output_64.txt\"
+    --sm_count : Can be used to specify the number of streaming multiprocessors of the current GPU, as this will be used in calculations (default: 16)
     -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)
 ```
 
 This should automatically start analysing the code and printing recommendations on the terminal screen.
 
 For older NVIDIA architectures (like Pascal), a dry run option has been provided that reports based on SASS instructions only. This can be run as `GPUscout --dry_run ..... `.
-
 
 ## About
 GPUscout has been initially developed by Soumya Sen, and is further maintained by Stepan Vanecek (stepan.vanecek@tum.de) and the [CAPS TUM](https://www.ce.cit.tum.de/en/caps/homepage/). Please contact us in case of questions, bug reporting etc.

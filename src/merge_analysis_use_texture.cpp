@@ -89,7 +89,6 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
     for (auto [k_sass, v_sass] : texture_analysis_map)
     {
         json kernel_result = {
-            {"texture_memory_used", false},
             {"occurrences", json::array()}
         };
 
@@ -101,6 +100,7 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
 
         std::cout << "--------------------- Use texture memory analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
         bool texture_recommend_flag = false;
+        bool texture_memory_used = false;
         for (auto index_sass : v_sass)
         {
             json line_result;
@@ -108,7 +108,7 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
             if (index_sass.is_texture_load)
             {
                 std::cout << "INFO  ::  Use of texture memory detected in the kernel" << std::endl;
-                kernel_result["texture_memory_used"] = true;
+                texture_memory_used = true;
                 break; // using break necessary, else code gets stuck in a loop
                 // if break statement needs to be removed, add default values for the register_obj in the parser file
             }
@@ -132,10 +132,13 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
                 texture_recommend_flag = true;
                 (multiple_reads_register_flag) ? std::cout << "Spatial locality found for the register data" << std::endl : std::cout << "No spatial locality found for the register data" << std::endl;
                 line_result = {
+                    {"severity", "WARNING"},
                     {"line_number", index_sass.line_number},
+                    {"pc_offset", index_sass.pcOffset},
                     {"written_register", index_sass.write_to_register_number},
                     {"read_register", index_sass.load_from_register},
-                    {"spatial_locality", multiple_reads_register_flag}
+                    {"spatial_locality", multiple_reads_register_flag},
+                    {"unroll_pc_offsets", index_sass.register_unroll_pcOffsets}
                 };
 
                 // Map kernel with the PC Stall map
@@ -170,17 +173,11 @@ json merge_analysis_use_texture(std::unordered_map<std::string, std::vector<regi
             if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Check data flow in texture memory, if you modify your code to use textures" << std::endl;
-                json tex_data_memory_metrics = texture_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check texture memory flow)
+                texture_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check texture memory flow)
 
                 // copied use_texture_memory_analysis from stalls_static_analysis_relation() method
                 std::cout << "If you are using texture memory, check Tex Throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
                 std::cout << "If you are using texture memory, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " %" << std::endl;
-
-                kernel_result["metrics"] = {
-                    {"texture_data_memory_flow", tex_data_memory_metrics},
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"smsp__warp_issue_stalled_tex_throttle_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active},
-                };
             }
         }
 

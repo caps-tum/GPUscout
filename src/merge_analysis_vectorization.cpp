@@ -61,7 +61,6 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
 
         std::cout << "--------------------- Vectorized load analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
         std::cout << "WARNING   ::  Total number of non-vectorized global load SASS instructions for this kernel: " << v_sass.global_load_count << std::endl;
-        kernel_result["total"] = v_sass.global_load_count;
 
         for (auto [k_reg, v_reg] : register_map)
         {
@@ -76,8 +75,11 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                         std::cout << "WARNING  ::  Use vectorized load for register " << index_sass.base << ", in line number " << index_sass.line_number << " of your code" << std::endl;
                         std::cout << "Register " << index_sass.base << " in line number " << index_sass.line_number << " of your code has " << index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0) << " adjacent memory accesses" << std::endl;
                         line_result = {
+                            {"severity", "WARNING"},
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
+                            {"unroll_pc_offsets", index_sass.unroll_pc_offsets},
                             {"adjacent_memory_accesses", index_sass.unrolls.size() - std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0)}
                         };
                     }
@@ -96,7 +98,9 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
                             std::cout << "INFO  ::  Using vectorized load for register " << index_sass.base << ", in line number " << index_sass.line_number << " of your code, might not boost performance" << std::endl;
                         }
                         line_result = {
+                            {"severity", "INFO"},
                             {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
                             {"register", index_sass.base},
                             {"register_load_type", index_sass.reg_load_type}
                         };
@@ -160,10 +164,6 @@ json merge_analysis_vectorize(std::unordered_map<std::string, load_counter> vect
             {
                 std::cout << "If you are using non-vectorized load/store, check Long Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active << " % per warp active" << std::endl;
                 std::cout << "INFO  ::  Using vectorized load increases the register pressure and hence might affect occupancy. Occupancy achieved: " << v_metric.metrics_list.sm__warps_active << " %" << std::endl;
-                kernel_result["metrics"] = {
-                    {"smsp__warp_issue_stalled_long_scoreboard_per_warp_active", v_metric.metrics_list.smsp__warp_issue_stalled_long_scoreboard_per_warp_active},
-                    {"sm__warps_active", v_metric.metrics_list.sm__warps_active},
-                };
             }
         }
 

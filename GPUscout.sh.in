@@ -36,10 +36,17 @@ usage() {
     if [ "@VENDOR@" = "nvidia" ] || [ "@VENDOR@" = "all" ]; then
       echo "  --kernels : (Nvidia) Comma-separated kernel patterns for NCU collection and end-to-end kernel filtering in final analysis output."
       echo "              If omitted, kernels are auto-discovered from generated SASS (cubin-scoped)."
-      echo "  --analysis : (Nvidia) Comma-separated analyses to run. e.g. --analysis=\"warp_divergence,use_shared\""
+      echo "  --analysis : (Nvidia) Comma-separated analysis IDs to run. Valid IDs: "
+      echo "              register_spilling,use_restrict,vectorization,global_atomics,"
+      echo "              warp_divergence,use_texture,use_shared,datatype_conversion,deadlock_detection."
       echo "              If omitted, all analyses are enabled."
       echo "  --nsys-hotspot-kernels [num] : Run Nsight Systems, parse hotspot kernels, and use top kernels for profiling."
       echo "                                 Default num is 10 when not specified. Cannot be used with --kernels."
+    else 
+      echo "  --analysis : (AMD) Comma-separated analysis IDs to run. Valid IDs: "
+      echo "              register_spilling,restrict,vectorized_load,atomic_instruction,"
+      echo "              wavefront_divergence,shared_memory,datatype_conversion,deadlock_detection."
+      echo "              If omitted, all analyses are enabled."
     fi
     exit 1
 }
@@ -86,7 +93,7 @@ done
 if [ "@VENDOR@" = "nvidia" ]; then
   options=$(getopt -o hvt:e:c:a:jp -l help,dry_run,verbose,type:,executable:,cubin:,args:,sm_count:,json,performance,kernels:,analysis: -- "${normalized_args[@]}")
 elif [ "@VENDOR@" = "amd" ]; then
-  options=$(getopt -o hvt:e:r:a:jp -l help,dry_run,verbose,type:,executable:,rga:,args:,sm_count:,json,performance -- "$@")
+  options=$(getopt -o hvt:e:r:a:jp -l help,dry_run,verbose,type:,executable:,rga:,args:,sm_count:,json,performance,analysis: -- "${normalized_args[@]}")
 else
   options=$(getopt -o hvt:e:c:r:a:jp -l help,dry_run,verbose,type:,executable:,cubin:,rga:,args:,sm_count:,json,performance,kernels:,analysis: -- "${normalized_args[@]}")
 fi
@@ -111,17 +118,6 @@ sms=16
 kernels_arg=""
 analysis_arg=""
 nsys_hotspot_kernels_count="${pre_nsys_hotspot_kernels_count}"
-valid_analyses=(
-    register_spilling
-    use_restrict
-    vectorization
-    global_atomics
-    warp_divergence
-    use_texture
-    use_shared
-    datatype_conversion
-    deadlock_detection
-)
 while true; do
     case "$1" in
         -h | --help)
@@ -187,6 +183,41 @@ while true; do
             ;;
     esac
 done
+case "$vendor" in
+    nvidia)
+        valid_analyses=(
+            register_spilling
+            use_restrict
+            vectorization
+            global_atomics
+            warp_divergence
+            use_texture
+            use_shared
+            datatype_conversion
+            deadlock_detection
+        )
+        ;;
+    amd)
+        valid_analyses=(
+            register_spilling
+            restrict
+            vectorized_load
+            atomic_instruction
+            wavefront_divergence
+            shared_memory
+            datatype_conversion
+            deadlock_detection
+        )
+        ;;
+    all)
+        # This case requires special handling if both vendor pipelines
+        # are executed, because some analyses use different names.
+        ;;
+    *)
+        echo "ERROR: Unknown vendor: $vendor" >&2
+        exit 1
+        ;;
+esac
 
 ###### Utility functions for validating and normalizing comma-separated lists (used for --kernels and --analysis arguments)######
 trim_whitespace() { # remove leading and trailing whitespace
@@ -256,6 +287,41 @@ validate_analysis_values() {
         echo "Valid values: $(join_by_comma "${valid_analyses[@]}")"
         exit 1
     fi
+}
+
+# Parse a comma-separated list, validate list syntax, trim tokens, and deduplicate.
+parse_csv_list () {
+    local raw="$1"
+    local option_name="$2"
+    local normalized token trimmed
+    local token_list=()
+
+    parsed_csv_list=()
+
+    validate_csv_list_syntax "${raw}" "${option_name}"
+    normalized="$(normalize_csv_list "${raw}")"
+
+    IFS=',' read -r -a token_list <<< "${normalized}"
+
+    for token in "${token_list[@]}"; do
+        trimmed="$(trim_whitespace "${token}")"
+        if ! array_contains "${trimmed}" "${parsed_csv_list[@]}"; then
+            parsed_csv_list+=("${trimmed}")
+        fi
+    done
+}
+
+# Check if an array contains a value
+array_contains () {
+    local needle="$1"
+    shift
+    local item
+    for item in "$@"; do
+        if [ "${item}" = "${needle}" ]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 ###### Utility function to check if a value is a positive integer (used for validating the --nsys-hotspot-kernels argument) ######
@@ -408,6 +474,7 @@ discover_nsys_hotspot_kernels() {
     kernels_arg="${hotspot_kernels[*]}"
     echo "Nsight hotspot kernels selected: ${kernels_arg}"
 }
+##### Utility functions end #####
 
 # Evaluate custom kernel constraints if explicit profiling sets are passed via CLI or if kernels were discovered via Nsight hotspot kernel discovery.
 if [ -n "${kernels_arg}" ]; then
@@ -519,7 +586,9 @@ echo "==== Dry-run: $dry_run"
 echo "==== Verbose: $verbose"
 echo "==== JSON Output: $json"
 echo "==== Performance Mode (Multi-threading): $performance_mode"
-echo "==== Kernels Filter: ${kernels_arg:-<not set: auto-select kernels from generated SASS (cubin-scoped)>}"
+if [ "$vendor" = "nvidia" ]; then
+    echo "==== Kernels Filter: ${kernels_arg:-<not set: auto-select kernels from generated SASS (cubin-scoped)>}"
+fi
 echo "==== Analyses: ${analysis_arg:-<not set: all analyses>}"
 if [ "$vendor" = "nvidia" ]; then
     echo "==== Nsight Hotspot Kernels: ${nsys_hotspot_kernels_count:-<disabled>}"
@@ -645,6 +714,7 @@ elif [ "$vendor" = "amd" ]; then
 
     # creating object file
     echo "==== creating object file"
+    start_static=$(date +%s.%N)
     roc-obj-ls -v "${executable}" | \
     awk '/amdgcn/{print $3}' | \
     roc-obj-extract -o
@@ -673,81 +743,8 @@ elif [ "$vendor" = "amd" ]; then
     "$rga" -s bin --livereg livereg/9_73_23_42_${executable_filename}-vgpr.txt --co "$object_file" # 9_73_23_42 to make kernel name extraction easier
     "$rga" -s bin --livereg-sgpr livereg/9_73_23_42_${executable_filename}-sgpr.txt --co "$object_file"
 
-    echo "======================================================================================================"
-    if [ "$dry_run" = false ]; then
-        echo "==== collecting kernel profiling data"
-
-        # creating profiling data
-        rm -rf "workloads/$executable_filename" # Clear possible previous workloads folder TODO: Can be uncommented when not debugging
-        rocprof-compute profile --name "$executable_filename" --no-roof --quiet -- "$executable" "$args"
-
-        mkdir metrics
-
-        gpu_name=$(ls "workloads/$executable_filename/")
-        # get the number of kernels and their respective kernel names in the executable
-        analysis_output=$(rocprof-compute analyze -p "workloads/$executable_filename/$gpu_name/" --list-stats)
-        echo "$analysis_output" | perl -ne 'if (/^│\s*(\d+)\s*│\s*(\w+.*\))\s*│$/) { print "$1,$2\n"; }' \
-                                  > metrics/kernel_list.csv
-
-        # Need to move everything into metrics folder because the analyze mode cant save the result in a directory
-        # and also cant access parent directories
-        mv "workloads" "metrics/workloads"
-        cd metrics
-
-        # Use different file descriptor (3) for the loop because rocprof-compute consumes/reads stdin resulting in only one kernel analyzed
-        exec 3< kernel_list.csv
-
-        # analyze each kernel separately
-        while IFS=, read -r -u 3 kernel_number kernel_name; do
-            # replace spaces and special characters in kernel_name for the output filename
-            sanitized_kernel_name=$(echo "$kernel_name" | tr -c 'a-zA-Z0-9' '_' | sed 's/^_//;s/_$//')
-            output_file="${executable_filename}_${sanitized_kernel_name}_metrics"
-
-            # execute the per-kernel analysis
-            # The metric block codes are explained in this work https://mediatum.ub.tum.de/1775107 under the analysis specific metric sections
-            rocprof-compute analyze \
-            -p "workloads/$executable_filename/$gpu_name" \
-            -b 7.2.4 10.1.6 10.2.14 11.2.5 12.1.0 12.1.1 12.1.3 12.2.5 15.1.9 15.1.13 16.3.3 16.3.5 17.2.7 17.3.1 17.3.4 17.5.10 \
-            -n per_kernel -k "$kernel_number" --output-name "$output_file" --output-format txt \
-            > /dev/null  # disregard console output
-        done
-
-        exec 3<&- # release file descriptor 3
-        cd .. # go back to previous work directory
-
-
-
-        # Creating file containing PC sampling data when supported by the gpu TODO Could be moved into metrics collection when pc sampling works without problems
-        stochastic_gpus=$(rocprofv3 -L | grep -A 7 "GPU\s*:" | grep  "Method\s*:\s*stochastic")
-        stochastic_gpus="" # TODO remove when rocprof-compute bug is fixed - doesnt collect data right now and data fields are just empty
-        if [ -n "$stochastic_gpus" ]; then
-            echo "==== collecting PC sampling data"
-
-            mkdir pc_samples
-            # Collect pc sampling data with the command from the docs - 128 cycles because nvidia version uses the same amount
-            rocprof-compute profile -n pc_test -b 21 --no-roof --pc-sampling-method stochastic --pc-sampling-interval 128 -VVV -- "$executable" "$args"
-            mv "workloads" "pc_samples/workloads"
-            cd pc_samples
-
-            # Use different file descriptor (3) for the loop because rocprof-compute consumes/reads stdin resulting in only one kernel analyzed
-            exec 3< kernel_list.csv
-            # analyze each kernel separately
-            while IFS=, read -r -u 3 kernel_number kernel_name; do
-                # replace spaces and special characters in kernel_name for the output filename
-                sanitized_kernel_name=$(echo "$kernel_name" | tr -c 'a-zA-Z0-9' '_' | sed 's/^_//;s/_$//')
-                output_file="${executable_filename}_${sanitized_kernel_name}_pc_samples"
-
-                # execute the per-kernel analysis
-                rocprof-compute analyze -p "workloads/$executable_filename/$gpu_name" -b 21 -k "$kernel_number" \
-                --output-name "$output_file" --output-format txt --pc-sampling-sorting-type offset
-            done
-            exec 3<&- # release file descriptor 3
-            cd ..
-        else
-            echo "==== no GPU on this system supports hardware-based (stochastic) PC sampling"
-        fi
-
-    fi
+    end_static=$(date +%s.%N)
+    static_time=$(awk "BEGIN {print $end_static - $start_static}")
 fi
 
 

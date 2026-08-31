@@ -18,27 +18,30 @@
 // Used for extracting the kernel name from the rocprof-compute file
 std::regex kernel_name_pattern() {
     /*
-        ╒═════════╤════════════════════════════════════════╤═════════╤═══════════╤════════════╤══════════════╤═══════╤═════╕
-        │   index │ Kernel_Name                            │   Count │   Sum(ns) │   Mean(ns) │   Median(ns) │   Pct │ S   │
-        ╞═════════╪════════════════════════════════════════╪═════════╪═══════════╪════════════╪══════════════╪═══════╪═════╡
-        │       0 │ __amd_rocclr_copyBuffer                │    5.00 │  29206.50 │    5841.30 │      5083.00 │ 42.80 │     │
-        ...
-        ├─────────┼────────────────────────────────────────┼─────────┼───────────┼────────────┼──────────────┼───────┼─────┤
-        │       3 │ spillingKernel(float*, float*, float*) │    1.00 │   7815.00 │    7815.00 │      7815.00 │ 11.45 │ *   │
+     * ╒═════════╤════════════════════════════════════════╤═════════╤═══════════╤════════════╤══════════════╤═══════╤═════╕
+     * │   index │ Kernel_Name                            │   Count │   Sum(ns) │   Mean(ns) │   Median(ns) │   Pct │ S   │
+     * ╞═════════╪════════════════════════════════════════╪═════════╪═══════════╪════════════╪══════════════╪═══════╪═════╡
+     * │       0 │ __amd_rocclr_copyBuffer                │    5.00 │  29206.50 │    5841.30 │      5083.00 │ 42.80 │     │
+     * ...
+     * ├─────────┼────────────────────────────────────────┼─────────┼───────────┼────────────┼──────────────┼───────┼─────┤
+     * │       3 │ spillingKernel(float*, float*, float*) │    1.00 │   7815.00 │    7815.00 │      7815.00 │ 11.45 │ *   │
+     *
+     * Some rocprof-compute versions append an AMDHSA descriptor suffix:
+     *
+     * │  0 │ spillingKernel(float*, float*) [clone .k │ ... │ * │
+     * │    │ d]                                       │ ...     │
+     *
+     * Only match the stable beginning of the row and capture the demangled kernel signature up to its closing parenthesis. 
+     * Remaining columns and optional suffixes such as "[clone .kd]" are deliberately ignored.
      */
     return std::regex(
-        "^│" // left border
-        "\\s*" // whitespaces after border
-        "\\d*" // kernel number
-        "\\s*│" // whitespaces after id and border
-        "\\s*(.*\\))\\s*│" // Kernel name
-        "[^│]*│" // Count segment
-        "[^│]*│" // Sum segment
-        "[^│]*│" // Mean segment
-        "[^│]*│" // Median segment
-        "[^│]*│" // Pct segment
-        "\\s*\\*\\s*│" // Selected kernel shown through *
-        "\\s*" // whitespaces at the end
+        "^\\s*"          // optional whitespaces at the beginning of the line
+        "│"              // left table border
+        "\\s*"           // whitespaces after the left border
+        "\\d+"           // kernel index, consisting of one or more digits
+        "\\s*│"          // whitespaces after the index and end of index column
+        "\\s*"           // whitespaces before the kernel name
+        "([^│]*\\))"     // capture kernel signature up to the closing ')'
     );
 }
 

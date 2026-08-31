@@ -73,7 +73,7 @@ json analysis_wavefront_divergence(
         std::cout << "==== INFO" << std::endl;
         std::cout << "==== total number of branch operations issued" << std::endl;
         std::cout << "     " << mtc_obj.ID_10_1_6 << std::endl;
-        std::cout << "==== what percent of the kernel’s duration the branch unit was busy executing instructions"
+        std::cout << "==== what percent of the kernel's duration the branch unit was busy executing instructions"
                   << std::endl;
         std::cout << "     " << mtc_obj.ID_11_2_5 << std::endl;
 

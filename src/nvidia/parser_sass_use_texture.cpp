@@ -4,8 +4,8 @@
  * @author Soumya Sen
  */
 
-#ifndef PARSER_SASS_USE_TEXTURE_HPP
-#define PARSER_SASS_USE_TEXTURE_HPP
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -19,6 +19,8 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+
+using json = nlohmann::json;
 
 /// @brief A register with data written to it is labelled as USED, while a read-only register is labelled NOT_USED
 enum used_flag
@@ -138,7 +140,7 @@ std::pair<std::string, unsigned long> read_register_pair(const std::string &line
     std::getline(ss3, register_unroll, 'x');
 
     /*
-    Need to put in try-catch block since the register unroll might not always be numbers
+    Need to put in try-catch block since the register j might not always be numbers
     For example:    (18a0*) LDG.E.SYS R34, [R2.64+UR4] ;
     */
     try
@@ -165,7 +167,7 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
 
     std::vector<register_used> register_vec;
     std::unordered_map<std::string, std::vector<register_used>> counter_map;
-    std::string kernel_name;
+    std::string k_sass;
     int code_line_number;
     register_used register_obj;
 
@@ -180,10 +182,10 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                 // https://cplusplus.com/reference/string/string/erase/     - erase part of a string
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
                 line.erase(line.end() - 15, line.end());     // erase the last 15 character of the name of the kernel
-                kernel_name = line;
+                k_sass = line;
                 register_obj.register_unroll_pcOffsets.clear();
                 register_obj.load_from_register_unrolls.clear();
-                // std::cout << kernel_name << std::endl;
+                // std::cout << k_sass << std::endl;
                 register_obj.load_from_register_unrolls.clear();
                 register_obj.register_unroll_pcOffsets.clear();
             }
@@ -206,7 +208,7 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                     register_obj.pcOffset = get_pcoffset_sass(line);
                     register_obj.flag = NOT_USED;
 
-                    // For a given register, If unroll distance is 4 for 32 bits, 8 for 64 bits and 16 for 128 bits => spatial locality of the data loaded
+                    // For a given register, If j distance is 4 for 32 bits, 8 for 64 bits and 16 for 128 bits => spatial locality of the data loaded
                     register_obj.load_from_register = read_register_pair(line).first;
                     register_obj.load_from_register_unrolls.insert(read_register_pair(line).second);
                     register_obj.register_unroll_pcOffsets.insert(get_pcoffset_sass(line));
@@ -257,7 +259,7 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
                 }
             }
 
-            counter_map[kernel_name] = register_vec;
+            counter_map[k_sass] = register_vec;
         }
     }
     else
@@ -300,4 +302,157 @@ std::unordered_map<std::string, std::vector<register_used>> use_texture_analysis
     return counter_map;
 }
 
-#endif // PARSER_SASS_USE_TEXTURE_HPP
+/// @brief Checks if the load addresses are in spatial locality
+/// @param index_sass set of address offsets for a given base register address
+/// @return True if spatial locality found, false otherwise
+bool check_spatial_locality(const register_used &index_sass)
+{
+    // Find the difference between the unrolls
+    // check https://www.geeksforgeeks.org/absolute-difference-of-all-pairwise-consecutive-elements-in-a-set/
+    std::set<unsigned long>::iterator it1 = index_sass.load_from_register_unrolls.begin();
+    std::set<unsigned long>::iterator it2 = index_sass.load_from_register_unrolls.begin();
+    bool spatial_locality_flag = true;
+    while (1)
+    {
+        it2++; // 2nd iterator at position 1
+        if (it2 == index_sass.load_from_register_unrolls.end())
+        {
+            break;
+        }
+        if ((abs(*it2 - *it1) != 4) && (abs(*it2 - *it1) != 8) && (abs(*it2 - *it1) != 16))
+        {
+            // if the unrolls are not at a difference of 4 (for LDG) or 8 (for LDG.64) or 16 (for LDG.128), spatial locality not there
+            spatial_locality_flag = false;
+            break;
+        }
+    }
+
+    return spatial_locality_flag;
+}
+
+/*!
+ * Build the reusable static result for use-texture analysis.
+ *
+ * candidate_kernels: Kernels for which use of texture memory is recommended.
+ * result: Fields belonging to the final use_texture.json consumed by GUI.
+ * metadata: Internal values required for terminal output. These values are not copied to the final GUI JSON.
+ * @param texture_analysis_map Includes read-only register data with spatial locality flag
+ */
+json build_static_use_texture_result(const std::unordered_map<std::string, std::vector<register_used>>& texture_analysis_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()},
+        {"metadata", json::object()}
+    };
+
+    for (const auto& [k_sass, v_sass] : texture_analysis_map)
+    {   
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass.empty())
+        {
+            continue;
+        }
+
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+        bool texture_memory_used = false;
+        bool texture_recommend_flag = false;
+
+        for (const auto& index_sass : v_sass)
+        {
+            if (index_sass.is_texture_load)
+            {
+                texture_memory_used = true;
+                break; // using break necessary, else code gets stuck in a loop
+                // if break statement needs to be removed, add default values for the register_obj in the parser file
+            }
+
+            // Find the global linear memory load info to recommend use of texture from the SASS analysis
+            bool spatial_locality_flag = check_spatial_locality(index_sass);
+            bool multiple_reads_register_flag = false;
+
+            // For flag NOT_USED (=0) and spatial locality (above algo check) use texture memory
+            if ((spatial_locality_flag) && (index_sass.flag == NOT_USED)) // spatial locality present
+            {
+                for (auto j : index_sass.load_from_register_unrolls)
+                {
+                    // should we apply this filter of locality distance > 0?
+                    // The current notion is: we consider spatial locality if a register is read followed by another read from the same register at an offset
+                    // e.g. read R8 and then read R8+0x10
+                    // if this second read is not present, there might not be any use of texture memory for that case. Global memory should be sufficient then
+                    multiple_reads_register_flag = (j == 0) ? false : true;
+                }
+                texture_recommend_flag = true;
+                kernel_result["occurrences"].push_back({
+                    {"severity", "WARNING"},
+                    {"line_number", index_sass.line_number},
+                    {"pc_offset", index_sass.pcOffset},
+                    {"written_register", index_sass.write_to_register_number},
+                    {"read_register", index_sass.load_from_register},
+                    {"spatial_locality", multiple_reads_register_flag},
+                    {"unroll_pc_offsets", index_sass.register_unroll_pcOffsets}
+                });
+            }
+        }
+
+        static_result["result"][k_sass] = std::move(kernel_result);
+        static_result["metadata"][k_sass] = {
+            {"texture_memory_used", texture_memory_used}
+        };
+
+        if (!texture_recommend_flag)
+        {
+            continue;
+        }
+
+        static_result["candidate_kernels"].push_back({
+            {"name", k_sass},
+            {"demangled", get_demangled_kernel(k_sass)}
+        });
+    }
+
+    return static_result;
+}
+
+bool has_use_texture_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    /*! Static detection mode:
+     *
+     *  1. Parse SASS using the existing detection algorithm.
+     *  2. Build and save the reusable static JSON.
+     *  3. Return whether at least one candidate kernel was detected.
+     *
+     *  exit 0 -> use of texture memory recommended
+     *  exit 1 -> no use-texture candidate detected
+     *  exit 2 -> invalid arguments or static-result write failure
+     */
+
+    const std::string assembly = argv[1];
+    const auto texture_analysis_map = use_texture_analysis(assembly);
+    const json static_result = build_static_use_texture_result(texture_analysis_map);
+
+    const auto static_result_file = static_result_path(assembly, "use_texture");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static texture result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_use_texture_candidate(static_result) ? 0 : 1;
+}

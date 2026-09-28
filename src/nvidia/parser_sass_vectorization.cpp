@@ -4,8 +4,6 @@
  * @author Soumya Sen
 */
 
-#ifndef PARSER_SASS_VECTORIZED_HPP
-#define PARSER_SASS_VECTORIZED_HPP
 
 #include <iostream>
 #include <iomanip>
@@ -19,6 +17,10 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+#include "../utilities/json.hpp"
+#include "../utilities/helper.hpp"
+
+using json = nlohmann::json;
 
 /// @brief Load types can be 32- 64- or 128-bit width
 enum load_type
@@ -115,7 +117,7 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
     std::vector<register_data> register_vec;
     std::unordered_map<std::string, std::vector<register_data>> register_map;
 
-    std::string kernel_name;
+    std::string k_sass;
 
     int code_line_number;
     // register_data register_obj;
@@ -132,8 +134,8 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
                 // https://cplusplus.com/reference/string/string/erase/     - erase part of a string
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
                 line.erase(line.end() - 15, line.end());     // erase the last 15 character of the name of the kernel
-                kernel_name = line;
-                // std::cout << kernel_name << std::endl;
+                k_sass = line;
+                // std::cout << k_sass << std::endl;
             }
 
             if (line.find(" line ") != std::string::npos)
@@ -210,8 +212,8 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
                 }
             }
 
-            counter_map[kernel_name] = counter_obj;
-            register_map[kernel_name] = register_vec;
+            counter_map[k_sass] = counter_obj;
+            register_map[k_sass] = register_vec;
         }
     }
     else
@@ -224,4 +226,118 @@ std::tuple<std::unordered_map<std::string, load_counter>, std::unordered_map<std
     return std::make_tuple(counter_map, register_map);
 }
 
-#endif // PARSER_SASS_VECTORIZED_HPP
+/*!
+ * Build the reusable static result for vectorization analysis.
+ *
+ * candidate_kernels: Kernels with at least one non-vectorized 32-bit load that accesses adjacent memory.
+ * result: GUI-facing data for every parsed kernel, including kernels with no vectorization recommendation.
+ * @param vectorize_analysis_map Total global load count
+ * @param register_map Includes base register and unrolled values data
+ */
+json build_static_vectorization_result(const std::unordered_map<std::string, load_counter>& vectorize_analysis_map, const std::unordered_map<std::string, std::vector<register_data>>& register_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()}
+    };
+
+    for (const auto& [k_sass, v_sass] : vectorize_analysis_map)
+    {   
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass.empty())
+        {
+            continue;
+        }
+
+        json kernel_result = {
+            {"total", v_sass.global_load_count},
+            {"occurrences", json::array()}
+        };
+        bool is_candidate = false;
+
+        const auto register_it = register_map.find(k_sass);
+        if (register_it != register_map.end())
+        {
+            for (const auto& index_sass : register_it->second)
+            {
+                const auto zero_count = std::count(index_sass.unrolls.begin(), index_sass.unrolls.end(), 0UL);
+                const auto adjacent_count = index_sass.unrolls.size() - zero_count;
+
+                // Base registers with no unrolling will show 0, hence need to ignore those counts
+                if (adjacent_count > 0 && index_sass.reg_load_type == VEC_32)
+                {
+                    kernel_result["occurrences"].push_back({
+                        {"severity", "WARNING"},
+                        {"line_number", index_sass.line_number},
+                        {"pc_offset", index_sass.pcOffset},
+                        {"register", index_sass.base},
+                        {"unroll_pc_offsets", index_sass.unroll_pc_offsets},
+                        {"adjacent_memory_accesses", adjacent_count}
+                    });
+                    is_candidate = true;
+                }
+                else
+                {
+                    kernel_result["occurrences"].push_back({
+                        {"severity", "INFO"},
+                        {"line_number", index_sass.line_number},
+                        {"pc_offset", index_sass.pcOffset},
+                        {"register", index_sass.base},
+                        {"register_load_type",
+                         static_cast<int>(index_sass.reg_load_type)}
+                    });
+                }
+            }
+        }
+
+        static_result["result"][k_sass] = std::move(kernel_result);
+
+        if (is_candidate)
+        {
+            static_result["candidate_kernels"].push_back({
+                {"name", k_sass},
+                {"demangled", get_demangled_kernel(k_sass)}
+            });
+        }
+    }
+
+    return static_result;
+}
+
+bool has_vectorization_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    /*! Static detection mode:
+     *
+     * exit 0 -> vectorization candidate detected
+     * exit 1 -> no vectorization candidate detected
+     * exit 2 -> invalid arguments or static-result write failure
+     */
+    const std::string assembly = argv[1];
+    const auto vectorize_tuple = vectorized_analysis(assembly);
+    const auto& vectorize_analysis_map = std::get<0>(vectorize_tuple);
+    const auto& register_map = std::get<1>(vectorize_tuple);
+
+    const json static_result = build_static_vectorization_result(vectorize_analysis_map, register_map);
+
+    const auto static_result_file = static_result_path(assembly, "vectorization");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static vectorization result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+}
+

@@ -4,8 +4,8 @@
  * @author Soumya Sen
  */
 
-#ifndef PARSER_SASS_REGISTER_SPILLING_HPP
-#define PARSER_SASS_REGISTER_SPILLING_HPP
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -19,6 +19,8 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+
+using json = nlohmann::json;
 
 /// @brief operations to the local memory can be a load or a store
 enum lmem_operation_type
@@ -250,4 +252,121 @@ std::tuple<std::unordered_map<std::string, std::vector<local_memory_counter>>, s
     return std::make_tuple(counter_map, track_register_map);
 }
 
-#endif // PARSER_SASS_REGISTER_SPILLING_HPP
+/*!
+ * Build the reusable static result for register-spilling analysis.
+ *
+ * candidate_kernels: Kernels for which at least one register spill was detected.
+ * result: Fields belonging to the final register_spilling.json consumed by GUI.
+ * metadata: Internal values required for terminal output. These values are not copied to the final GUI JSON.
+ * @param spilling_analysis_map Includes register load/store to local memory data
+ * @param track_register_map Includes previous arithmetic SASS instruction of the register
+ */
+json build_static_register_spilling_result(const std::unordered_map<std::string, std::vector<local_memory_counter>>& spilling_analysis_map, const std::unordered_map<std::string, std::vector<track_register_instruction>>& track_register_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()},
+        {"metadata", json::object()}
+    };
+
+    for (const auto& [k_sass, v_sass] : spilling_analysis_map)
+    {
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass.empty())
+        {
+            continue;
+        }
+
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
+        const auto track_register_it = track_register_map.find(k_sass);
+
+        for (const auto& index_sass : v_sass)
+        {
+            json line_result = {
+                {"severity", "WARNING"},
+                {"line_number", index_sass.line_number},
+                {"register", index_sass.register_number},
+                {"pc_offset", index_sass.pcOffset},
+                {"operation", lmem_operation_type_string[index_sass.op_type]}
+            };
+
+            if (track_register_it != track_register_map.end())
+            {
+                for (const auto& last_reg : track_register_it->second)
+                {
+                    if (index_sass.register_number == last_reg.register_number)
+                    {
+                        line_result["previous_compute_instruction"] = {
+                            {"instruction", last_reg.last_instruction},
+                            {"line_number", last_reg.last_line_number},
+                            {"pc_offset", last_reg.last_pcOffset}
+                        };
+                    }
+                }
+            }
+
+            kernel_result["occurrences"].push_back(std::move(line_result));
+        }
+
+        static_result["result"][k_sass] = std::move(kernel_result);
+        static_result["metadata"][k_sass] = {
+            {"spill_count", v_sass.size()}
+        };
+
+        if (v_sass.empty())
+            continue;
+
+        static_result["candidate_kernels"].push_back({
+            {"name", k_sass},
+            {"demangled", get_demangled_kernel(k_sass)}
+        });
+    }
+
+    return static_result;
+}
+
+bool has_register_spilling_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    /*! Static detection mode:
+     *
+     *  1. Parse SASS using the existing detection algorithm.
+     *  2. Build and save the reusable static JSON.
+     *  3. Return whether at least one candidate kernel was detected.
+     *
+     *  exit 0 -> register spilling detected
+     *  exit 1 -> no register spilling detected
+     *  exit 2 -> invalid arguments or static-result write failure
+     */
+    const std::string assembly = argv[1];
+    const auto sass_spilling_tuple = register_spilling_analysis(assembly);
+    const auto& spilling_analysis_map = std::get<0>(sass_spilling_tuple);
+    const auto& track_register_map = std::get<1>(sass_spilling_tuple);
+    const json static_result = build_static_register_spilling_result(spilling_analysis_map, track_register_map);
+
+    const auto static_result_file = static_result_path(assembly, "register_spilling");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static register spilling result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_register_spilling_candidate(static_result) ? 0 : 1;
+}
+

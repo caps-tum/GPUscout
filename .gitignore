@@ -3,6 +3,7 @@ src/nvidia/sampling_utilities/sampling_continuous/Makefile
 src/nvidia/sampling_utilities/sampling_unility/Makefile
 src/nvidia/sampling_utilities/generate_sampling_stalls.sh
 build/*
+examples/*
 inst-dir/*
 install/*
 tmp-gpuscout/*

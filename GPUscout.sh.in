@@ -35,10 +35,12 @@ usage() {
     echo "  -p | --performance : Use a separate thread for each analysis"
     if [ "@VENDOR@" = "nvidia" ] || [ "@VENDOR@" = "all" ]; then
       echo "  --kernels : (Nvidia) Comma-separated kernel patterns for NCU collection and end-to-end kernel filtering in final analysis output."
-      echo "              If omitted, kernels are auto-discovered from generated SASS (cubin-scoped)."
-      echo "  --analysis : (Nvidia) Comma-separated analyses to run. e.g. --analysis=\"warp_divergence,use_shared\""
-      echo "              If omitted, all analyses are enabled."
-      echo "  --nsys-hotspot-kernels [num] : Run Nsight Systems, parse hotspot kernels, and use top kernels for profiling."
+      echo "              If omitted, all statically detected candidate kernels are profiled"
+      echo "  --analysis : (Nvidia) Comma-separated analysis IDs to run. Valid IDs: "
+      echo "              register_spilling,use_restrict,vectorization,global_atomics,"
+      echo "              warp_divergence,use_texture,use_shared,datatype_conversion,deadlock_detection."
+      echo "              If omitted, analyses will be selected automatically based on static detection results."
+      echo "  --nsys-hotspot-kernels [num] : Run Nsight Systems, parse hotspot kernels, and use top kernels to filter the statically detected candidate kernels for profiling."
       echo "                                 Default num is 10 when not specified. Cannot be used with --kernels."
     fi
     exit 1
@@ -111,17 +113,7 @@ sms=16
 kernels_arg=""
 analysis_arg=""
 nsys_hotspot_kernels_count="${pre_nsys_hotspot_kernels_count}"
-valid_analyses=(
-    register_spilling
-    use_restrict
-    vectorization
-    global_atomics
-    warp_divergence
-    use_texture
-    use_shared
-    datatype_conversion
-    deadlock_detection
-)
+nsys_hotspot_kernels=()
 while true; do
     case "$1" in
         -h | --help)
@@ -187,7 +179,45 @@ while true; do
             ;;
     esac
 done
+case "$vendor" in
+    nvidia)
+        valid_analyses=(
+            register_spilling
+            use_restrict
+            vectorization
+            global_atomics
+            warp_divergence
+            use_texture
+            use_shared
+            datatype_conversion
+            deadlock_detection
+        )
+        ;;
+    amd)
+        valid_analyses=(
+            register_spilling
+            restrict
+            vectorized_load
+            atomic_instruction
+            wavefront_divergence
+            shared_memory
+            datatype_conversion
+            deadlock_detection
+        )
+        ;;
+    all)
+        # This case requires special handling if both vendor pipelines
+        # are executed, because some analyses use different names.
+        ;;
+    *)
+        echo "ERROR: Unknown vendor: $vendor" >&2
+        exit 1
+        ;;
+esac
 
+########################################################################
+# Utility function
+########################################################################
 ###### Utility functions for validating and normalizing comma-separated lists (used for --kernels and --analysis arguments)######
 trim_whitespace() { # remove leading and trailing whitespace
     local value="$1"
@@ -305,8 +335,8 @@ discover_nsys_hotspot_kernels() {
     local stats_prefix="${gpuscout_tmp_dir}/nsys-stats-${run_prefix}"
     local rep_file=""
     local stats_csv=""
-    local collapsed_csv=""
-    local parser_script="${gpuscout_dir}/analysis_nvidia/nsys_report_to_hotspot_kernels.py"
+    # local collapsed_csv=""
+    # local parser_script="${gpuscout_dir}/analysis_nvidia/nsys_report_to_hotspot_kernels.py"
     local hotspot_names=""
     local kernel
     local hotspot_kernels=()
@@ -319,10 +349,10 @@ discover_nsys_hotspot_kernels() {
         echo "ERROR: --nsys-hotspot-kernels requires 'python3' in PATH."
         exit 1
     fi
-    if [ ! -f "${parser_script}" ]; then
-        echo "ERROR: Parser script not found: ${parser_script}"
-        exit 1
-    fi
+    # if [ ! -f "${parser_script}" ]; then
+    #     echo "ERROR: Parser script not found: ${parser_script}"
+    #     exit 1
+    # fi
 
     rm -f "${profile_prefix}".nsys-rep "${profile_prefix}".qdrep "${profile_prefix}".sqlite
     rm -f "${stats_prefix}"*.csv
@@ -380,15 +410,16 @@ discover_nsys_hotspot_kernels() {
         exit 1
     fi
 
-    collapsed_csv="$(python3 "${parser_script}" "${stats_csv}" | tail -n 1)"
-    if [ -z "${collapsed_csv}" ] || [ ! -f "${collapsed_csv}" ]; then
-        echo "ERROR: Failed to build collapsed hotspot CSV with ${parser_script}"
-        exit 1
-    fi
+    # Uncomment if function instead of demangled name is to be extracted
+    # collapsed_csv="$(python3 "${parser_script}" "${stats_csv}" | tail -n 1)"
+    # if [ -z "${collapsed_csv}" ] || [ ! -f "${collapsed_csv}" ]; then
+    #     echo "ERROR: Failed to build collapsed hotspot CSV with ${parser_script}"
+    #     exit 1
+    # fi
 
-    hotspot_names="$(extract_top_kernel_names_from_csv "${collapsed_csv}" "${top_n}")"
+    hotspot_names="$(extract_top_kernel_names_from_csv "${stats_csv}" "${top_n}")"
     if [ -z "${hotspot_names}" ]; then
-        echo "ERROR: No hotspot kernels found in ${collapsed_csv}"
+        echo "ERROR: No hotspot kernels found in ${stats_csv}"
         exit 1
     fi
 
@@ -400,16 +431,16 @@ discover_nsys_hotspot_kernels() {
     done <<< "${hotspot_names}"
 
     if [ "${#hotspot_kernels[@]}" -eq 0 ]; then
-        echo "ERROR: No valid hotspot kernel names extracted from ${collapsed_csv}"
+        echo "ERROR: No valid hotspot kernel names extracted from ${stats_csv}"
         exit 1
     fi
 
-    local IFS=,
-    kernels_arg="${hotspot_kernels[*]}"
-    echo "Nsight hotspot kernels selected: ${kernels_arg}"
+    # Keep Nsight Systems results separate from the user-provided --kernels argument. 
+    nsys_hotspot_kernels=("${hotspot_kernels[@]}")
+    echo "Nsight hotspot kernels selected: $(join_by_comma "${nsys_hotspot_kernels[@]}")"
 }
 
-# Evaluate custom kernel constraints if explicit profiling sets are passed via CLI or if kernels were discovered via Nsight hotspot kernel discovery.
+# Evaluate custom kernel constraints if explicit profiling sets are passed via CLI 
 if [ -n "${kernels_arg}" ]; then
     validate_csv_list_syntax "${kernels_arg}" "kernels" # validate the syntax of the comma-separated list
 fi
@@ -622,24 +653,23 @@ if [ "$vendor" = "nvidia" ]; then
 
     cd ${gpuscout_dir}
     echo -e "Generating binaries . . . . . . . . . . . . . . . . . . . ."
-    start_static=$(date +%s.%N)
+    start_static_prep=$(date +%s.%N)
     nvdisasm -g -c ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${run_prefix}-sass.txt #TODO this line necessary?
     nvdisasm -g -c ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-sass.txt
     cuobjdump -ptx ${executable} > ${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-ptx.txt
     nvdisasm -g -c -lrm=count ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${run_prefix}-sass.txt #TODO this line necessary?
     nvdisasm -g -c -lrm=count ${cubin} > ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${run_prefix}-sass.txt
-    end_static=$(date +%s.%N)
-    static_time=$(awk "BEGIN {print $end_static - $start_static}")
+    end_static_prep=$(date +%s.%N)
+    static_prep_time=$(awk "BEGIN {print $end_static_prep - $start_static_prep}")
 
-    # Run the generate_sampling_stalls script inside the sampling_utilities directory
-    if [ "$dry_run" = false ]; then
-        echo "Getting warp stall reasons . . . . . . . . . . . . . . . "
-        start_pcsampling=$(date +%s.%N)
-        source ${gpuscout_dir}/sampling_utilities/generate_sampling_stalls.sh
-        cp ${gpuscout_dir}/sampling_utilities/sampling_utility/pcsampling_${run_prefix}.txt ${gpuscout_tmp_dir}/pcsampling_${run_prefix}.txt
-        end_pcsampling=$(date +%s.%N)
-        pcsampling_time=$(awk "BEGIN {print $end_pcsampling - $start_pcsampling}")
-    fi
+    hpc_sass="${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt"
+    exe_sass="${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt"
+    exe_ptx="${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt"
+    sampling="${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt"
+    metrics="${gpuscout_tmp_dir}/${run_prefix}_metrics_list"
+    reg_exe="${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt"
+    reg_hpc="${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${executable_filename}-sass.txt"
+
 elif [ "$vendor" = "amd" ]; then
     cd "${gpuscout_tmp_dir}" || exit
 

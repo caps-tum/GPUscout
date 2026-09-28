@@ -7,11 +7,11 @@
  * @author Soumya Sen
  */
 
-#include "parser_sass_use_shared.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
 #include "kernel_filter.hpp"
 #include "../utilities/json.hpp"
+#include "../utilities/helper.hpp"
 
 using json = nlohmann::json;
 
@@ -52,126 +52,75 @@ void print_stalls_percentage(const pc_issue_samples &index)
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for using shared memory instead of global memory
-/// @param shared_analysis_map Includes information about the register load from global memory and arithmetic instructions using it
-/// @param branch_map Target branch information to detect if the atomic operation is in a for-loop
+/// @param static_result Static result produced by parser_sass_use_shared.
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map, std::unordered_map<std::string, std::vector<branch_counter>> branch_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, const std::vector<std::string> &kernel_filters)
+json merge_analysis_use_shared(const json& static_result, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, const std::vector<std::string> &kernel_filters)
 {
-    json result;
+    json final_result = json::object();
+    const auto& result = static_result["result"];
 
-    for (auto [k_sass, v_sass] : shared_analysis_map)
+    for (const auto& [krn_name, krn_result] : result.items())
     {
-        json kernel_result = {
-            {"occurrences", {}}
-        };
-
-        bool shared_recommend_flag = false;
-        // Fix for blank kernel name appearing in the analysis_map
-        if (k_sass == "")
-        {
-            break;
-        }
-        if (!kernel_matches_filter(k_sass, kernel_filters))
+        if (!kernel_matches_filter(krn_name, kernel_filters))
         {
             continue;
         }
 
-        std::cout << "--------------------- Use shared memory analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
-        for (auto index_sass : v_sass)
-        {
-            json line_result;
-            // only print if the load count > 0 and operations on the register count is more than 1 and operations count more than load count
-            // (i.e. multiple access to the registers and hence can be benefitted using shared memory)
-            // also only print if there is a for loop detected inside which the load operations of the registers happen
-            if ((index_sass.register_load_count > 0) && (index_sass.register_operation_count > 1) && (index_sass.register_operation_count > index_sass.register_load_count))
-            {
-                if (index_sass.shared_mem_use)
-                {
-                    shared_recommend_flag = false;
-                    // If already using async memcpy for SM >80 (LDGSTS instruction)
-                    if (index_sass.LDG_pcOffset == "LDGSTS")
-                    {
-                        std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already using asynchronous global to shared memory copy at line number " << index_sass.line_number << " of your code" << std::endl;
-                        line_result = {
-                            {"severity", "INFO"},
-                            {"line_number", index_sass.line_number},
-                            {"pc_offset", index_sass.pcOffset},
-                            {"register", index_sass.register_number},
-                            {"uses_shared_memory", true},
-                            {"uses_async_global_to_shared_memory_copy", true},
-                        };
-                    }
+        std::cout << "--------------------- Use shared memory analysis for kernel: " << krn_name << "   --------------------- " << std::endl;
+        const auto& occurrences = krn_result["occurrences"];
+        bool shared_recommend_flag = false;
 
-                    // If already storing global reads to shared memory (without async memcpy)
-                    else
-                    {
-                        std::cout << "INFO  ::  Register number " << index_sass.register_number << " is already storing data in shared memory at line number " << index_sass.line_number << " of your code" << std::endl;
-                        line_result = {
-                            {"severity", "INFO"},
-                            {"line_number", index_sass.line_number},
-                            {"pc_offset", index_sass.pcOffset},
-                            {"register", index_sass.register_number},
-                            {"uses_shared_memory", true},
-                            {"uses_async_global_to_shared_memory_copy", false},
-                            {"instruction_count_to_shared_mem_store", index_sass.count_to_shared_mem_store}
-                        };
-                        if (index_sass.count_to_shared_mem_store > 0)
-                        {
-                            std::cout << "Data loaded from global memory is stored to shared memory after " << index_sass.count_to_shared_mem_store << " instructions. Asynchronous global to shared memcopy might help for SM > 80" << std::endl;
-                            line_result["lgd_pc_offset"] = index_sass.LDG_pcOffset;
-                        }
-                    }
+        for (const auto& occurrence : occurrences)
+        {
+            const bool uses_shared_memory = occurrence["uses_shared_memory"].get<bool>();
+
+            if (uses_shared_memory)
+            {
+                const bool uses_async_copy = occurrence["uses_async_global_to_shared_memory_copy"].get<bool>();
+                
+                if (uses_async_copy)
+                {   
+                    std::cout << "INFO  ::  Register number " << occurrence["register"].get<std::string>() << " is already using asynchronous global to shared memory copy at line number " << occurrence["line_number"].get<int>() << " of your code" << std::endl;
                 }
+
                 else
                 {
-                    for (const auto &j : branch_map[index_sass.target_branch])
+                    std::cout << "INFO  ::  Register number " << occurrence["register"].get<std::string>() << " is already storing data in shared memory at line number " << occurrence["line_number"].get<int>() << " of your code" << std::endl;
+                    const int instruction_count = occurrence["instruction_count_to_shared_mem_store"].get<int>();
+                    if (instruction_count > 0)
                     {
-                        if ((j.target_branch_line_number != 0) && (index_sass.target_branch == j.target_branch))
-                        {
-                            std::cout << "Register number " << index_sass.register_number << " at line number " << index_sass.line_number << " of your code has " << index_sass.register_load_count << " total global load counts and " << index_sass.register_operation_count << " computation instruction counts" << std::endl;
-                            line_result = {
-                                {"severity", "WARNING"},
-                                {"line_number", index_sass.line_number},
-                                {"pc_offset", index_sass.pcOffset},
-                                {"register", index_sass.register_number},
-                                {"uses_shared_memory", false},
-                                {"global_load_count", index_sass.register_load_count},
-                                {"global_load_pc_offsets", index_sass.register_load_pc_offsets},
-                                {"computation_instruction_count", index_sass.register_operation_count},
-                                {"computation_instruction_pc_offsets", index_sass.register_operation_pc_offsets},
-                                {"in_for_loop", j.inside_for_loop},
-                            };
-                            if (j.inside_for_loop)
-                            {
-                                std::cout << "This register seems to be in a for loop and hence will perform multiple load operations" << std::endl;
-
-                                // // Map kernel with the PC Stall map
-                                for (auto [k_pc, v_pc] : pc_stall_map)
-                                {
-                                    if ((k_pc == k_sass)) // analyze for the same kernel (sass analysis and pc sampling analysis)
-                                    {
-                                        for (const auto &j_pc : v_pc)
-                                        {
-                                            if ((index_sass.line_number == j_pc.line_number) && (get_register_from_line(j_pc.sass_instruction) == index_sass.register_number))
-                                            {
-                                                print_stalls_percentage(j_pc);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            std::cout << "WARNING  ::  Since the data at register number " << index_sass.register_number << " is accessed multiple times, you can benifit from using shared memory instead of global memory." << std::endl;
-
-                            shared_recommend_flag = true;
-                        }
+                        std::cout << "Data loaded from global memory is stored to shared memory after " << instruction_count << " instructions. Asynchronous global to shared memcopy might help for SM > 80" << std::endl;
                     }
                 }
             }
+            else
+            {
+                shared_recommend_flag = true;
+                std::cout << "Register number " << occurrence["register"].get<std::string>() << " at line number " << occurrence["line_number"].get<int>() << " of your code has " << occurrence["global_load_count"].get<int>() << " total global load counts and " << occurrence["computation_instruction_count"].get<int>() << " computation instruction counts" << std::endl;
+                
+                if (occurrence["in_for_loop"].get<bool>())
+                {
+                    std::cout << "This register seems to be in a for loop and hence will perform multiple load operations" << std::endl;
 
-            if (!line_result.is_null())
-                kernel_result["occurrences"].push_back(line_result);
+                    // // Map kernel with the PC Stall map
+                    for (auto [k_pc, v_pc] : pc_stall_map)
+                    {
+                        if ((k_pc == krn_name)) // analyze for the same kernel (sass analysis and pc sampling analysis)
+                        {
+                            for (const auto &j_pc : v_pc)
+                            {
+                                if ((occurrence["line_number"].get<int>() == j_pc.line_number) && (get_register_from_line(j_pc.sass_instruction) == occurrence["register"].get<std::string>()))
+                                {
+                                    print_stalls_percentage(j_pc);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                std::cout << "WARNING  ::  Since the data at register number " << occurrence["register"].get<std::string>() << " is accessed multiple times, you can benifit from using shared memory instead of global memory." << std::endl;
+            }
         }
 
         if (!shared_recommend_flag)
@@ -182,7 +131,7 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
         // Map kernel with metrics collected
         for (auto [k_metric, v_metric] : metric_map)
         {
-            if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
+            if ((k_metric == krn_name)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 std::cout << "INFO  ::  Check data flow in shared memory, if you modify your code to use shared memory" << std::endl;
                 shared_data_memory_flow(metric_map[k_metric]); // show the memory flow (to check shared memory flow)
@@ -197,18 +146,39 @@ json merge_analysis_use_shared(std::unordered_map<std::string, std::vector<regis
             }
         }
 
-        result[k_sass] = kernel_result;
+        final_result[krn_name] = krn_result;
     }
 
-    return result;
+    return final_result;
 }
 
 int main(int argc, char **argv)
 {
+    /*! Full analysis mode:
+     * exit 0 -> successful analysis
+     * exit 1 -> missing or invalid static result
+     * exit 2 -> invalid arguments
+     */
+    if (argc != 8 && argc != 9)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <hpctoolkit-sass> <executable-sass> <executable-ptx>"
+                  << " <sampling-file> <metrics-file> <save-as-json>"
+                  << " <json-output-dir> [kernel-filter-csv]\n";
+        return 2;
+    }
+
     std::string filename_hpctoolkit_sass = argv[1];
-    auto shared_analysis_tuple = use_shared_analysis(filename_hpctoolkit_sass);
-    std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map = std::get<0>(shared_analysis_tuple);
-    std::unordered_map<std::string, std::vector<branch_counter>> branch_map = std::get<1>(shared_analysis_tuple);
+    const std::string filename_executable_sass = argv[2];
+    const auto static_result_file = static_result_path(filename_executable_sass, "use_shared");
+
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Missing or invalid static use-shared result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
 
     std::string filename_sampling = argv[4];
     std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map = get_warp_stalls(filename_sampling, filename_hpctoolkit_sass, analysis_kind::SHARED_USE);
@@ -224,7 +194,7 @@ int main(int argc, char **argv)
         kernel_filters = parse_kernel_filter_csv(argv[8]);
     }
 
-    json result = merge_analysis_use_shared(shared_analysis_map, branch_map, pc_stall_map, metric_map, kernel_filters);
+    json result = merge_analysis_use_shared(static_result, pc_stall_map, metric_map, kernel_filters);
 
     if (save_as_json)
     {

@@ -6,6 +6,15 @@ set (CMAKE_CUDA_STANDARD 17)
 find_package(CUDAToolkit 11.8 REQUIRED)
 include_directories(CUDA::cupti)
 
+add_executable(parser_sass_register_spilling parser_sass_register_spilling.cpp)
+add_executable(parser_sass_datatype_conversion parser_sass_datatype_conversion.cpp)
+add_executable(parser_sass_use_texture parser_sass_use_texture.cpp)
+add_executable(parser_sass_global_atomics parser_ptx_global_atomics.cpp)
+add_executable(parser_sass_warp_divergence parser_sass_warp_divergence.cpp)
+add_executable(parser_sass_use_shared parser_sass_use_shared.cpp)
+add_executable(parser_sass_use_restrict parser_sass_use_restrict.cpp)
+add_executable(parser_sass_vectorization parser_sass_vectorization.cpp)
+add_executable(parser_sass_deadlock_detection parser_sass_deadlock_detection.cpp)
 add_executable(merge_analysis_register_spilling merge_analysis_register_spilling.cpp)
 add_executable(merge_analysis_use_restrict merge_analysis_use_restrict.cpp)
 add_executable(merge_analysis_vectorization merge_analysis_vectorization.cpp)
@@ -18,7 +27,16 @@ add_executable(merge_analysis_deadlock_detection merge_analysis_deadlock_detecti
 add_executable(nvidia_save_to_json save_to_json.cpp)
 set_target_properties(nvidia_save_to_json PROPERTIES OUTPUT_NAME save_to_json)
 
-install(TARGETS merge_analysis_register_spilling 
+install(TARGETS parser_sass_register_spilling 
+                parser_sass_datatype_conversion
+                parser_sass_use_texture
+                parser_sass_global_atomics
+                parser_sass_warp_divergence
+                parser_sass_use_shared
+                parser_sass_use_restrict
+                parser_sass_vectorization
+                parser_sass_deadlock_detection
+                merge_analysis_register_spilling 
                 merge_analysis_use_restrict
                 merge_analysis_vectorization
                 merge_analysis_global_atomics

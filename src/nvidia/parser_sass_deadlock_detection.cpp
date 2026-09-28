@@ -4,9 +4,6 @@
  * @author Soumya Sen
  */
 
-#ifndef PARSER_SASS_DEADLOCK_DETECTION_HPP
-#define PARSER_SASS_DEADLOCK_DETECTION_HPP
-
 #include <iostream>
 #include <iomanip>
 #include <unordered_map>
@@ -19,6 +16,11 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
+
+using json = nlohmann::json;
 
 struct deadlock_detect
 {
@@ -37,7 +39,7 @@ std::unordered_map<std::string, deadlock_detect> deadlock_detection_analysis(con
     deadlock_detect deadlock_detect_obj;
     std::unordered_map<std::string, deadlock_detect> counter_map;
 
-    std::string kernel_name;
+    std::string k_sass;
     int code_line_number;
 
     if (file.is_open())
@@ -54,8 +56,8 @@ std::unordered_map<std::string, deadlock_detect> deadlock_detection_analysis(con
                 // https://cplusplus.com/reference/string/string/erase/     - erase part of a string
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
                 line.erase(line.end() - 15, line.end());     // erase the last 15 character of the name of the kernel
-                kernel_name = line;
-                // std::cout << kernel_name << std::endl;
+                k_sass = line;
+                // std::cout << k_sass << std::endl;
             }
 
             if (line.find(" line ") != std::string::npos)
@@ -76,7 +78,7 @@ std::unordered_map<std::string, deadlock_detect> deadlock_detection_analysis(con
             if ((line.find("SYNC") != std::string::npos) && (branch_in_cas))
             {
                 sync_in_cas = true;
-                // std::cout << "WARNING   ::  Deadlock possibility in kernel: " << kernel_name << std::endl;
+                // std::cout << "WARNING   ::  Deadlock possibility in kernel: " << k_sass << std::endl;
                 deadlock_detect_obj.deadlock_detect_flag = true;
             }
 
@@ -85,7 +87,7 @@ std::unordered_map<std::string, deadlock_detect> deadlock_detection_analysis(con
                 inside_cas = false;
             }
 
-            counter_map[kernel_name] = deadlock_detect_obj;
+            counter_map[k_sass] = deadlock_detect_obj;
         }
     }
     else
@@ -94,5 +96,79 @@ std::unordered_map<std::string, deadlock_detect> deadlock_detection_analysis(con
     return counter_map;
 }
 
+/*!
+ * Build the reusable static result for deadlock detection.
+ *
+ * candidate_kernels: Kernels for which a possible deadlock was detected.
+ * result: Final GUI-facing deadlock flag for every parsed kernel.
+ * @param detection_map Analysis for deadlock detection
+ */
+json build_static_deadlock_detection_result(const std::unordered_map<std::string, deadlock_detect>& detection_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()}
+    };
 
-#endif // PARSER_SASS_DEADLOCK_DETECTION_HPP
+    for (const auto& [k_sass, v_sass] : detection_map)
+    {
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass.empty())
+        {
+            continue;
+        }
+
+        static_result["result"][k_sass] = {
+            {"metrics", {
+                {"deadlock_detect_flag", v_sass.deadlock_detect_flag}
+            }}
+        };
+
+        if (v_sass.deadlock_detect_flag)
+        {
+            static_result["candidate_kernels"].push_back({
+                {"name", k_sass},
+                {"demangled", get_demangled_kernel(k_sass)}
+            });
+        }
+    }
+
+    return static_result;
+}
+
+bool has_deadlock_detection_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    /*! Static detecion mode:
+     *
+     * exit 0 -> possible deadlock detected
+     * exit 1 -> no possible deadlock detected
+     * exit 2 -> invalid arguments or static-result write failure
+     */
+    const std::string assembly = argv[1];
+    const auto detection_map = deadlock_detection_analysis(assembly);
+    const json static_result = build_static_deadlock_detection_result(detection_map);
+
+    const auto static_result_file = static_result_path(assembly, "deadlock_detection");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr
+            << "ERROR: Could not save static deadlock-detection result to "
+            << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_deadlock_detection_candidate(static_result) ? 0 : 1;
+}

@@ -4,9 +4,6 @@
  * @author Soumya Sen
  */
 
-#ifndef PARSER_SASS_RESTRICT_HPP
-#define PARSER_SASS_RESTRICT_HPP
-
 #include <iostream>
 #include <iomanip>
 #include <unordered_map>
@@ -19,6 +16,11 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+
+#include "../utilities/json.hpp"
+#include "../utilities/helper.hpp"
+
+using json = nlohmann::json;
 
 /// @brief A register with data written to it is labelled as USED, while a read-only register is labelled NOT_USED
 enum used_flag
@@ -97,7 +99,7 @@ std::unordered_map<std::string, std::vector<register_used>> restrict_analysis(co
 
     std::vector<register_used> register_vec;
     std::unordered_map<std::string, std::vector<register_used>> counter_map;
-    std::string kernel_name;
+    std::string k_sass;
     int code_line_number;
     register_used register_obj;
 
@@ -112,8 +114,8 @@ std::unordered_map<std::string, std::vector<register_used>> restrict_analysis(co
                 // https://cplusplus.com/reference/string/string/erase/     - erase part of a string
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
                 line.erase(line.end() - 15, line.end());     // erase the last 15 character of the name of the kernel
-                kernel_name = line;
-                // std::cout << kernel_name << std::endl;
+                k_sass = line;
+                // std::cout << k_sass << std::endl;
             }
 
             if (line.find(" line ") != std::string::npos)
@@ -157,7 +159,7 @@ std::unordered_map<std::string, std::vector<register_used>> restrict_analysis(co
                 }
             }
 
-            counter_map[kernel_name] = register_vec;
+            counter_map[k_sass] = register_vec;
         }
     }
     else
@@ -165,7 +167,7 @@ std::unordered_map<std::string, std::vector<register_used>> restrict_analysis(co
 
     // for (const auto& i: counter_map["_Z9bodyForceP4Bodyfi"])
     // {
-    //     // For registers with flag 0 (NOT USED), we can advice the user to use the __restrict__ keyword because
+    //     // For v_sass with flag 0 (NOT USED), we can advice the user to use the __restrict__ keyword because
     //     // it asserts to the compiler that the pointers are in fact not aliased and hence would never overwrite those elements
     //     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#restrict
     //     std::cout << "Register number: " << i.register_number << " Line number: " << i.line_number << " Flag: " << i.flag << std::endl;
@@ -174,5 +176,104 @@ std::unordered_map<std::string, std::vector<register_used>> restrict_analysis(co
     return counter_map;
 }
 
+/*!
+ * Build the reusable static result for use-restrict analysis.
+ *
+ * candidate_kernels: Kernels with at least one read-only global load that is not already using the read-only cache.
+ * result: GUI-facing occurrences for every parsed kernel.
+ * @param restrict_analysis_map Read-only and non-aliased data of v_sass in the kernel
+ */
+json build_static_use_restrict_result(const std::unordered_map<std::string, std::vector<register_used>>& restrict_analysis_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()}
+    };
 
-#endif // PARSER_SASS_RESTRICT_HPP
+    for (const auto& [k_sass, v_sass] : restrict_analysis_map)
+    {
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass.empty())
+        {
+            continue;
+        }
+
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
+        bool is_candidate = false;
+        for (const auto& index_sass : v_sass)
+        {
+            // The original merge only reports v_sass whose loaded value is
+            // not overwritten later in the kernel.
+            if (index_sass.flag != NOT_USED)
+            {
+                continue;
+            }
+
+            const bool recommend_restrict = !index_sass.read_only_mem_used;
+
+            kernel_result["occurrences"].push_back({
+                {"severity", recommend_restrict ? "WARNING" : "INFO"},
+                {"line_number", index_sass.line_number},
+                {"pc_offset", index_sass.pcOffset},
+                {"register", index_sass.register_number},
+                {"read_only_memory_used", index_sass.read_only_mem_used}
+            });
+
+            if (recommend_restrict)
+            {
+                is_candidate = true;
+            }
+        }
+
+        static_result["result"][k_sass] = std::move(kernel_result);
+
+        if (is_candidate)
+        {
+            static_result["candidate_kernels"].push_back({
+                {"name", k_sass},
+                {"demangled", get_demangled_kernel(k_sass)}
+            });
+        }
+    }
+
+    return static_result;
+}
+
+bool has_use_restrict_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    /*! Static detection mode:
+     *
+     * exit 0 -> use-restrict candidate detected
+     * exit 1 -> no use-restrict candidate detected
+     * exit 2 -> invalid arguments or static-result write failure
+     */
+    const std::string assembly = argv[1];
+    const auto restrict_analysis_map = restrict_analysis(assembly);
+    const json static_result = build_static_use_restrict_result(restrict_analysis_map);
+
+    const auto static_result_file = static_result_path(assembly, "use_restrict");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static use-restrict result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_use_restrict_candidate(static_result) ? 0 : 1;
+}

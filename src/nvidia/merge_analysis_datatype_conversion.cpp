@@ -7,9 +7,9 @@
  * @author Soumya Sen
  */
 
-#include "parser_sass_datatype_conversion.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 #include "kernel_filter.hpp"
 #include <cstring>
@@ -39,42 +39,38 @@ void print_stalls_percentage(const pc_issue_samples &index)
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for datatype conversion
-/// @param datatype_conversion_map Includes I2F, F2I and F2F conversion data
+/// @param static_result Static datatype-conversion result produced by parser_sass_datatype_conversion
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, const std::vector<std::string> &kernel_filters)
+json merge_analysis_datatype_conversion(const json& static_result, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, const std::vector<std::string> &kernel_filters)
 {
-    json result;
+    json final_result = json::object();
+    auto& result = static_result["result"];
+    auto& metadata = static_result["metadata"];
 
-    for (auto [k_sass, v_sass] : datatype_conversion_map)
+    for (const auto& [krn_name, krn_result] : result.items())
     {
-        json kernel_result = {
-            {"occurrences", json::array()}
-        };
-
-        // Fix for blank kernel name appearing in the analysis_map
-        if (k_sass == "")
-        {
-            break;
-        }
-        if (!kernel_matches_filter(k_sass, kernel_filters))
+        if (!kernel_matches_filter(krn_name, kernel_filters))
         {
             continue;
         }
 
-        std::cout << "--------------------- Datatype conversion analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
-        if (v_sass.F2F_count > 0)
+        const int F2F_count = metadata[krn_name]["F2F_count"].get<int>();
+        const int I2F_count = metadata[krn_name]["I2F_count"].get<int>();
+        const int F2I_count = metadata[krn_name]["F2I_count"].get<int>();
+        const auto& occurrences = krn_result["occurrences"];
+
+        std::cout << "--------------------- Datatype conversion analysis for kernel: " << krn_name << "   --------------------- " << std::endl;
+        if (F2F_count > 0)
         {
-            std::cout << "WARNING   ::  There are " << v_sass.F2F_count << " F2F conversions found at line numbers: ";
-            for (auto i : v_sass.F2F_line)
+            std::cout << "WARNING   ::  There are " << F2F_count << " F2F conversions found at line numbers: ";
+            for (const auto& occurrence : occurrences)
             {
-                std::cout << std::get<0>(i) << ", ";
-                kernel_result["occurrences"].push_back({
-                    {"severity", "WARNING"},
-                    {"line_number", std::get<0>(i)},
-                    {"pc_offset", std::get<1>(i)},
-                    {"type", "F2F"}
-                });
+                if (occurrence["type"].get<std::string>() != "F2F")
+                {
+                    continue;
+                }
+                std::cout << occurrence["line_number"].get<int>() << ", ";
             }
             std::cout << std::endl;
         }
@@ -83,18 +79,16 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "INFO  ::  No F2F conversions found" << std::endl;
         }
 
-        if (v_sass.I2F_count > 0)
+        if (I2F_count > 0)
         {
-            std::cout << "WARNING   ::  There are " << v_sass.I2F_count << " I2F conversions found at line numbers: ";
-            for (auto i : v_sass.I2F_line)
+            std::cout << "WARNING   ::  There are " << I2F_count << " I2F conversions found at line numbers: ";
+            for (const auto& occurrence : occurrences)
             {
-                std::cout << std::get<0>(i) << ", ";
-                kernel_result["occurrences"].push_back({
-                    {"severity", "WARNING"},
-                    {"line_number", std::get<0>(i)},
-                    {"pc_offset", std::get<1>(i)},
-                    {"type", "I2F"}
-                });
+                if (occurrence["type"].get<std::string>() != "I2F")
+                {
+                    continue;
+                }
+                std::cout << occurrence["line_number"].get<int>() << ", ";
             }
             std::cout << std::endl;
         }
@@ -103,18 +97,16 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
             std::cout << "INFO  ::  No I2F conversions found" << std::endl;
         }
 
-        if (v_sass.F2I_count > 0)
+        if (F2I_count > 0)
         {
-            std::cout << "WARNING   ::  There are " << v_sass.F2I_count << " F2I conversions found at line numbers: ";
-            for (auto i : v_sass.F2I_line)
+            std::cout << "WARNING   ::  There are " << F2I_count << " F2I conversions found at line numbers: ";
+            for (const auto& occurrence : occurrences)
             {
-                std::cout << std::get<0>(i) << ", ";
-                kernel_result["occurrences"].push_back({
-                    {"severity", "WARNING"},
-                    {"line_number", std::get<0>(i)},
-                    {"pc_offset", std::get<1>(i)},
-                    {"type", "F2I"}
-                });
+                if (occurrence["type"].get<std::string>() != "F2I")
+                {
+                    continue;
+                }
+                std::cout << occurrence["line_number"].get<int>() << ", ";
             }
             std::cout << std::endl;
         }
@@ -125,7 +117,7 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
 
         for (auto [k_metric, v_metric] : metric_map)
         {
-            if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
+            if ((k_metric == krn_name)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 // copied datatype_conversions from stalls_static_analysis_relation() method
                 std::cout << "For F2F (32 to 64 bit) conversions, check Tex throttle: " << v_metric.metrics_list.smsp__warp_issue_stalled_tex_throttle_per_warp_active << " %" << std::endl;
@@ -133,17 +125,37 @@ json merge_analysis_datatype_conversion(std::unordered_map<std::string, datatype
                 std::cout << "For I2F and F2F (32 bit only) conversions, check Short Scoreboard: " << v_metric.metrics_list.smsp__warp_issue_stalled_short_scoreboard_per_warp_active << " %" << std::endl;
             }
         }
-
-        result[k_sass] = kernel_result;
+        final_result[krn_name] = krn_result;
     }
 
-    return result;
+    return final_result;
 }
 
 int main(int argc, char **argv)
 {
+    /*! Full analysis mode:
+     * exit 0 -> successful analysis
+     * exit 1 -> missing or invalid static result
+     * exit 2 -> invalid arguments
+     */
+    if (argc != 8 && argc != 9) // “kernel_filters" as optional arg
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <hpctoolkit-sass> <executable-sass> <executable-ptx>"
+                  << " <sampling-file> <metrics-file> <save-as-json>"
+                  << " <json-output-dir> [kernel-filter-csv]\n";
+        return 2;
+    }
     std::string filename_hpctoolkit_sass = argv[1];
-    std::unordered_map<std::string, datatype_conversions_counter> datatype_conversion_map = datatype_conversions_analysis(filename_hpctoolkit_sass);
+    std::string filename_executable_sass = argv[2];
+    const auto static_result_file = static_result_path(filename_executable_sass, "datatype_conversion");
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Missing or invalid static datatype conversion result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
 
     std::string filename_sampling = argv[4];
     std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map = get_warp_stalls(filename_sampling, filename_hpctoolkit_sass, analysis_kind::DATATYPE_CONVERSION);
@@ -159,7 +171,7 @@ int main(int argc, char **argv)
         kernel_filters = parse_kernel_filter_csv(argv[8]);
     }
 
-    json result = merge_analysis_datatype_conversion(datatype_conversion_map, pc_stall_map, metric_map, kernel_filters);
+    json result = merge_analysis_datatype_conversion(static_result, pc_stall_map, metric_map, kernel_filters);
 
     if (save_as_json)
     {

@@ -4,8 +4,8 @@
  * @author Soumya Sen
  */
 
-#ifndef PARSER_SASS_USE_SHARED_HPP
-#define PARSER_SASS_USE_SHARED_HPP
+#include "../utilities/json.hpp"
+#include "../utilities/helper.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -19,6 +19,8 @@
 #include <utility>
 #include <algorithm>
 #include <memory>
+
+using json = nlohmann::json;
 
 /// @brief Target branch information to detect if instruction is in a for-loop
 struct branch_counter
@@ -349,4 +351,152 @@ std::tuple<std::unordered_map<std::string, std::vector<register_access>>, std::u
     return std::make_tuple(counter_map, branch_map);
 }
 
-#endif // PARSER_USE_SHARED_HPP
+/*!
+ * Build the reusable static result for use-shared analysis.
+ *
+ * candidate_kernels: Kernels with at least one shared-memory recommendation.
+ * result: GUI-facing occurrences for every parsed kernel.
+ * @param shared_analysis_map Includes information about the register load from global memory and arithmetic instructions using it
+ * @param branch_map Target branch information to detect if the atomic operation is in a for-loop
+ */
+json build_static_use_shared_result(std::unordered_map<std::string, std::vector<register_access>> shared_analysis_map, std::unordered_map<std::string, std::vector<branch_counter>> branch_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()},
+    };
+
+    for (auto [k_sass, v_sass] : shared_analysis_map)
+    {
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
+        bool shared_recommend_flag = false;
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass == "")
+        {
+            continue;
+        }
+
+        for (auto index_sass : v_sass)
+        {
+            // only print if the load count > 0 and operations on the register count is more than 1 and operations count more than load count
+            // (i.e. multiple access to the registers and hence can be benefitted using shared memory)
+            // also only print if there is a for loop detected inside which the load operations of the registers happen
+            if ((index_sass.register_load_count > 0) && (index_sass.register_operation_count > 1) && (index_sass.register_operation_count > index_sass.register_load_count))
+            {
+                if (index_sass.shared_mem_use)
+                {
+                    // If already using async memcpy for SM >80 (LDGSTS instruction)
+                    if (index_sass.LDG_pcOffset == "LDGSTS")
+                    {
+                        kernel_result["occurrences"].push_back({
+                            {"severity", "INFO"},
+                            {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
+                            {"register", index_sass.register_number},
+                            {"uses_shared_memory", true},
+                            {"uses_async_global_to_shared_memory_copy", true}
+                        });
+                    }
+
+                    // If already storing global reads to shared memory (without async memcpy)
+                    else
+                    {
+                        json line_result = {
+                            {"severity", "INFO"},
+                            {"line_number", index_sass.line_number},
+                            {"pc_offset", index_sass.pcOffset},
+                            {"register", index_sass.register_number},
+                            {"uses_shared_memory", true},
+                            {"uses_async_global_to_shared_memory_copy", false},
+                            {"instruction_count_to_shared_mem_store", index_sass.count_to_shared_mem_store}
+                        };
+
+                        if (index_sass.count_to_shared_mem_store > 0)
+                        {
+                            line_result["lgd_pc_offset"] = index_sass.LDG_pcOffset;
+                        }
+
+                        kernel_result["occurrences"].push_back(std::move(line_result));
+                    }
+                }
+                else
+                {
+                    const auto branch_it = branch_map.find(index_sass.target_branch);
+                    if (branch_it == branch_map.end())
+                    {
+                        continue;
+                    }
+
+                    for (const auto &j : branch_it->second)
+                    {
+                        if ((j.target_branch_line_number != 0) && (index_sass.target_branch == j.target_branch))
+                        {
+                            kernel_result["occurrences"].push_back({
+                                {"severity", "WARNING"},
+                                {"line_number", index_sass.line_number},
+                                {"pc_offset", index_sass.pcOffset},
+                                {"register", index_sass.register_number},
+                                {"uses_shared_memory", false},
+                                {"global_load_count", index_sass.register_load_count},
+                                {"global_load_pc_offsets", index_sass.register_load_pc_offsets},
+                                {"computation_instruction_count", index_sass.register_operation_count},
+                                {"computation_instruction_pc_offsets", index_sass.register_operation_pc_offsets},
+                                {"in_for_loop", j.inside_for_loop},
+                            });
+
+                            shared_recommend_flag = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        static_result["result"][k_sass] = std::move(kernel_result);
+
+        if (shared_recommend_flag)
+        {
+            static_result["candidate_kernels"].push_back({
+                {"name", k_sass},
+                {"demangled", get_demangled_kernel(k_sass)}
+            });
+        }
+    }
+
+    return static_result;
+}
+
+bool has_use_shared_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    const std::string assembly = argv[1];
+    const auto shared_analysis_tuple = use_shared_analysis(assembly);
+    const auto& shared_analysis_map = std::get<0>(shared_analysis_tuple);
+    const auto& branch_map = std::get<1>(shared_analysis_tuple);
+
+    const json static_result = build_static_use_shared_result(shared_analysis_map, branch_map);
+
+    const auto static_result_file = static_result_path(assembly, "use_shared");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static use-shared result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_use_shared_candidate(static_result) ? 0 : 1;
+}

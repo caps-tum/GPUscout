@@ -4,8 +4,8 @@
  * @author Soumya Sen
  */
 
-#ifndef PARSER_PTX_GLOBAL_ATOMICS_HPP
-#define PARSER_PTX_GLOBAL_ATOMICS_HPP
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <memory>
 #include <set>
+
+using json = nlohmann::json;
 
 /// @brief Target branch information to detect if instruction is in a for-loop
 struct branch_counter
@@ -97,7 +99,7 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
 
     atomic_counter counter_obj;
     std::unordered_map<std::string, atomic_counter> counter_map;
-    std::string kernel_name;
+    std::string k_sass;
 
     branch_counter branch_obj;
     std::vector<branch_counter> branch_vec;
@@ -138,8 +140,8 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
                 // https://cplusplus.com/reference/string/string/erase/     - erase part of a string
                 line.erase(line.begin(), line.begin() + 16); // erase the first 16 character of the name of the kernel
                 line.erase(line.end() - 1, line.end()); // erase the last 1 character of the name of the kernel
-                kernel_name = line;
-                // std::cout << kernel_name << std::endl;
+                k_sass = line;
+                // std::cout << k_sass << std::endl;
             }
 
             if (line.find(".loc") == std::string::npos && line.find(".visible") == std::string::npos && line.find(".file") == std::string::npos && line.substr(0, 4) != "$L__")
@@ -226,9 +228,9 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
                 }
             }
 
-            branch_map[kernel_name] = branch_vec;
+            branch_map[k_sass] = branch_vec;
 
-            counter_map[kernel_name] = counter_obj;
+            counter_map[k_sass] = counter_obj;
         }
     }
     else
@@ -256,4 +258,152 @@ std::tuple<std::unordered_map<std::string, atomic_counter>, std::unordered_map<s
     return std::make_tuple(counter_map, branch_map);
 }
 
-#endif // PARSER_GLOBAL_ATOMICS_HPP
+/*!
+ * Build the reusable static result for global-atomics analysis.
+ *
+ * candidate_kernels: Kernels for which at least one global atomic was detected.
+ * result: Fields belonging to the final global_atomics.json consumed by GUI.
+ * metadata: Internal values required for terminal output and PC sampling. These values are not copied to the final GUI JSON.
+ * @param ptx_atomic_map Includes global and shared atomic data
+ * @param branch_map Target branch information to detect if the atomic operation is in a for-loop
+ */
+json build_static_global_atomics_result(const std::unordered_map<std::string, atomic_counter>& ptx_atomic_map, const std::unordered_map<std::string, std::vector<branch_counter>>& branch_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()},
+        {"metadata", json::object()}
+    };
+
+    for (const auto& [k_sass, v_sass] : ptx_atomic_map)
+    {
+        // Fix for blank kernel name appearing in the analysis_map
+        if (k_sass.empty())
+        {
+            continue;
+        }
+
+        json kernel_result = {
+            {"occurrences", json::array()}
+        };
+
+        const auto branch_it = branch_map.find(k_sass);
+        if (branch_it != branch_map.end())
+        {
+            if (v_sass.atom_global_count > 0)
+            {
+                for (auto& i : v_sass.atom_global_line_number)
+                {
+                    for (const auto& branch : branch_it->second)
+                    {
+                        if ((branch.atom_global_line_number.find(std::get<0>(i)) != branch.atom_global_line_number.end()) && (branch.target_branch_line_number != 0))
+                        {
+                            kernel_result["occurrences"].push_back({
+                                {"severity", "WARNING"},
+                                {"line_number", std::get<0>(i)},
+                                {"line_number_raw", std::get<1>(i)},
+                                {"in_for_loop", branch.inside_for_loop},
+                                {"is_global", true}
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (v_sass.atom_shared_count > 0)
+            {
+                for (const auto& i : v_sass.atom_shared_line_number)
+                {
+                    for (const auto& branch : branch_it->second)
+                    {
+                        if ((branch.atom_shared_line_number.find(std::get<0>(i)) != branch.atom_shared_line_number.end()) && (branch.target_branch_line_number != 0))
+                        {
+                            kernel_result["occurrences"].push_back({
+                                {"severity", "INFO"},
+                                {"line_number", std::get<0>(i)},
+                                {"line_number_raw", std::get<1>(i)},
+                                {"in_for_loop", branch.inside_for_loop},
+                                {"is_global", false}
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        json global_line_numbers = json::array();
+        for (const auto& i : v_sass.atom_global_line_number)
+        {
+            global_line_numbers.push_back(std::get<0>(i));
+        }
+
+        json shared_line_numbers = json::array();
+        for (const auto& i : v_sass.atom_shared_line_number)
+        {
+            shared_line_numbers.push_back(std::get<0>(i));
+        }
+
+        static_result["result"][k_sass] = std::move(kernel_result);
+        static_result["metadata"][k_sass] = {
+            {"atom_global_count", v_sass.atom_global_count},
+            {"atom_shared_count", v_sass.atom_shared_count},
+            {"global_line_numbers", std::move(global_line_numbers)},
+            {"shared_line_numbers", std::move(shared_line_numbers)}
+        };
+
+        // Only kernels with global atomics considered as candidate
+        if (v_sass.atom_global_count == 0)
+            continue;
+
+        static_result["candidate_kernels"].push_back({
+            {"name", k_sass},
+            {"demangled", get_demangled_kernel(k_sass)}
+        });
+    }
+
+    return static_result;
+}
+
+bool has_global_atomics_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char** argv)
+{
+    if (argc != 3)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <sass-file> <ptx-file>\n";
+        return 2;
+    }
+
+    /*! Static detection mode:
+     *
+     *  1. Parse PTX using the existing detection algorithm.
+     *  2. Build and save the reusable static JSON.
+     *  3. Return whether at least one candidate kernel was detected.
+     *
+     *  exit 0 -> global atomic operation detected
+     *  exit 1 -> no global atomic operation detected
+     *  exit 2 -> invalid arguments or static-result write failure
+     */
+    const std::string assembly = argv[1];
+    const std::string ptx = argv[2];
+    const auto atomics_analysis_tuple = global_mem_atomics_analysis(ptx);
+    const auto& ptx_atomic_map = std::get<0>(atomics_analysis_tuple);
+    const auto& branch_map = std::get<1>(atomics_analysis_tuple);
+    const json static_result = build_static_global_atomics_result(ptx_atomic_map, branch_map);
+
+    const auto static_result_file = static_result_path(assembly, "global_atomics");
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static global atomics result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_global_atomics_candidate(static_result) ? 0 : 1;
+}
+

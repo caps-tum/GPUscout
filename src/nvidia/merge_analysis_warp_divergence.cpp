@@ -7,10 +7,10 @@
  * @author Soumya Sen
  */
 
-#include "parser_sass_divergence.hpp"
 #include "parser_pcsampling.hpp"
 #include "parser_metrics.hpp"
 #include "kernel_filter.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 
 using json = nlohmann::json;
@@ -38,70 +38,58 @@ void print_stalls_percentage(const pc_issue_samples &index)
 }
 
 /// @brief Merge analysis (SASS, CUPTI, Metrics) for detecting conditional branching and warp divergence
-/// @param divergence_analysis_map Includes branch information
-/// @param branch_target_map Includes target branch information
+/// @param static_result Static result produced by parser_sass_warp_divergence.
 /// @param pc_stall_map CUPTI warp stalls
 /// @param metric_map Metric analysis
-json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map, std::unordered_map<std::string, int> branch_target_map, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, const std::vector<std::string> &kernel_filters)
+json merge_analysis_divergence(const json& static_result, std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map, std::unordered_map<std::string, kernel_metrics> metric_map, const std::vector<std::string> &kernel_filters)
 {
-    json result;
+    json final_result = json::object();
+    const auto& result = static_result["result"];
+    const auto& metadata = static_result["metadata"];
 
-    for (auto [k_sass, v_sass] : divergence_analysis_map)
+    for (const auto& [krn_name, krn_result] : result.items())
     {
-        json kernel_result = {
-            {"occurrences", json::array()}
-        };
-
-        // Fix for blank kernel name appearing in the analysis_map
-        if (k_sass == "")
-        {
-            break;
-        }
-        if (!kernel_matches_filter(k_sass, kernel_filters))
+        if (!kernel_matches_filter(krn_name, kernel_filters))
         {
             continue;
         }
 
-        std::cout << "--------------------- Warp divergence detection analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
-        for (const auto &index_sass : v_sass)
+        std::cout << "--------------------- Warp divergence detection analysis for kernel: " << krn_name << "   --------------------- " << std::endl;
+        const int conditional_branch_count = metadata[krn_name]["conditional_branch_count"].get<int>();
+        const auto& occurrences = krn_result["occurrences"];
+        json kernel_result = krn_result;
+
+        for (const auto& occurrence : occurrences)
         {
-            json line_result;
+            std::cout << "Conditional branching detected in line number " << occurrence["line_number"].get<int>() << " of your code, with target branch: " << occurrence["target_branch"].get<std::string>() << " (target branch starts at line number: " << occurrence["target_branch_start_line_number"].get<int>() << ")" << std::endl;
 
-            if (index_sass.line_number != branch_target_map[index_sass.target_branch]) // branches that has target branch in the same line numbers are not considered as conditional branching
+            // Map kernel with the PC Stall map
+            for (auto [k_pc, v_pc] : pc_stall_map)
             {
-                std::cout << "Conditional branching detected in line number " << index_sass.line_number << " of your code, with target branch: " << index_sass.target_branch << " (target branch starts at line number: " << branch_target_map[index_sass.target_branch] << ")" << std::endl;
-                line_result = {
-                   {"severity", "WARNING"},
-                   {"line_number", index_sass.line_number} ,
-                   {"pc_offset", index_sass.pcOffset},
-                   {"target_branch", index_sass.target_branch},
-                   {"target_branch_start_line_number", branch_target_map[index_sass.target_branch]},
-                };
-
-                // Map kernel with the PC Stall map
-                for (auto [k_pc, v_pc] : pc_stall_map)
+                if ((k_pc == krn_name)) // analyze for the same kernel (sass analysis and pc sampling analysis)
                 {
-                    if ((k_pc == k_sass)) // analyze for the same kernel (sass analysis and pc sampling analysis)
+                    for (const auto &j : v_pc)
                     {
-                        for (const auto &j : v_pc)
+                        if ((occurrence["line_number"].get<int>()== j.line_number)) // analyze for the same line numbers in the code
                         {
-                            if ((index_sass.line_number == j.line_number)) // analyze for the same line numbers in the code
-                            {
-                                print_stalls_percentage(j);
-                                break; // once register matched/found, get out of the loop
-                            }
+                            print_stalls_percentage(j);
+                            break; // once register matched/found, get out of the loop
                         }
                     }
                 }
             }
-            if (!line_result.is_null())
-                kernel_result["occurrences"].push_back(line_result);
+        }
+
+        if (conditional_branch_count == 0)
+        {
+            std::cout << "INFO  ::  No conditional branching detected in the kernel"
+                      << std::endl;
         }
 
         // Map kernel with metrics collected
         for (auto [k_metric, v_metric] : metric_map)
         {
-            if ((k_metric == k_sass)) // analyze for the same kernel (sass analysis and metric analysis)
+            if ((k_metric == krn_name)) // analyze for the same kernel (sass analysis and metric analysis)
             {
                 double branch_divergence_percent = 100.0 * v_metric.metrics_list.sm__sass_branch_targets_threads_divergent / v_metric.metrics_list.sm__sass_branch_targets;
                 if (branch_divergence_percent > 0)
@@ -117,18 +105,39 @@ json merge_analysis_divergence(std::unordered_map<std::string, std::vector<branc
                 };
             }
         }
-        result[k_sass] = kernel_result;
+        final_result[krn_name] = std::move(kernel_result);
     }
 
-    return result;
+    return final_result;
 }
 
 int main(int argc, char **argv)
 {
+    /*! Full analysis mode:
+     * exit 0 -> successful analysis
+     * exit 1 -> missing or invalid static result
+     * exit 2 -> invalid arguments
+     */
+    if (argc != 8 && argc != 9)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <hpctoolkit-sass> <executable-sass> <executable-ptx>"
+                  << " <sampling-file> <metrics-file> <save-as-json>"
+                  << " <json-output-dir> [kernel-filter-csv]\n";
+        return 2;
+    }
+
     std::string filename_hpctoolkit_sass = argv[1];
-    auto divergence_tuple = branches_detection(filename_hpctoolkit_sass);
-    std::unordered_map<std::string, std::vector<branch_counter>> divergence_analysis_map = std::get<0>(divergence_tuple);
-    std::unordered_map<std::string, int> branch_target_map = std::get<1>(divergence_tuple);
+    const std::string filename_executable_sass = argv[2];
+    const auto static_result_file = static_result_path(filename_executable_sass, "warp_divergence");
+
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Missing or invalid static warp divergence result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
 
     std::string filename_sampling = argv[4];
     std::unordered_map<std::string, std::vector<pc_issue_samples>> pc_stall_map = get_warp_stalls(filename_sampling, filename_hpctoolkit_sass, analysis_kind::WARP_DIVERGENCE);
@@ -144,7 +153,7 @@ int main(int argc, char **argv)
         kernel_filters = parse_kernel_filter_csv(argv[8]);
     }
 
-    json result = merge_analysis_divergence(divergence_analysis_map, branch_target_map, pc_stall_map, metric_map, kernel_filters);
+    json result = merge_analysis_divergence(static_result, pc_stall_map, metric_map, kernel_filters);
 
     if (save_as_json)
     {

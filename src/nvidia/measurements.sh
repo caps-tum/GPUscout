@@ -26,182 +26,361 @@ append_ncu_csv_rows () {
     rm -f "${src}"
 }
 
-extract_kernels_from_generated_sass () {
-    local sass_file="$1"
-    local kernel
+########################################################################
+# Static parsing and analysis selection
+########################################################################
+echo "Static parsing and analysis selection"
+echo "======================================================================================================"
+if [ ! -s "$exe_sass" ]; then
+    echo "ERROR: NVIDIA SASS file was not created or is empty: $exe_sass" >&2
+    exit 2
+fi
 
-    extracted_cubin_kernels=()
-
-    if [ ! -f "${sass_file}" ]; then
-        echo "ERROR: Generated SASS file not found for kernel discovery: ${sass_file}"
-        exit 1
-    fi
-
-    while IFS= read -r kernel; do
-        kernel="$(trim_whitespace "${kernel}")"
-        if [ -z "${kernel}" ]; then
-            continue
-        fi
-        if ! array_contains "${kernel}" "${extracted_cubin_kernels[@]}"; then
-            extracted_cubin_kernels+=("${kernel}")
-        fi
-    done < <(
-        awk '
-            /\.other[[:space:]]+/ && /STO_CUDA_ENTRY/ {
-                line=$0
-                sub(/^.*\.other[[:space:]]+/, "", line)
-                sub(/,.*/, "", line)
-                gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-                if (line != "") print line
-            }
-        ' "${sass_file}"
+automatic_mode=false
+if [ -z "${analysis_arg:-}" ]; then # if no analyses were specified, use automatic mode
+    #### Automatic mode ####
+    # Enable analyses only when their static bottleneck occurrence has been detected.
+    automatic_mode=true
+    echo "== NVIDIA analysis selection mode: automatic (static-triggered)"
+    requested_analyses=(
+        register_spilling
+        use_restrict
+        vectorization
+        global_atomics
+        warp_divergence
+        use_texture
+        use_shared
+        datatype_conversion
+        deadlock_detection
     )
+else
+    #### Manual mode ####
+    # Only run the parsers for the selected analyses.
+    automatic_mode=false
+    parse_csv_list "${analysis_arg}" "analysis"
+    requested_analyses=("${parsed_csv_list[@]}")
+    echo "== NVIDIA analysis selection mode: manual"
+fi
+echo "== Requested NVIDIA analyses: $(join_by_comma "${requested_analyses[@]}")"
 
-    if [ "${#extracted_cubin_kernels[@]}" -eq 0 ]; then
-        while IFS= read -r kernel; do
-            kernel="$(trim_whitespace "${kernel}")"
-            if [ -z "${kernel}" ]; then
-                continue
-            fi
-            if ! array_contains "${kernel}" "${extracted_cubin_kernels[@]}"; then
-                extracted_cubin_kernels+=("${kernel}")
-            fi
-        done < <(
-            awk '
-                /\.section[[:space:]]+\.text\./ {
-                    line=$0
-                    sub(/^.*\.section[[:space:]]+\.text\./, "", line)
-                    sub(/,.*/, "", line)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-                    if (line != "") print line
-                }
-            ' "${sass_file}"
-        )
+start_static_parser=$(date +%s.%N)
+enabled_analyses=()
+# Store parser output separately so that terminal output remains ordered even when the parsers are executed in parallel.
+static_parser_logs_dir="${gpuscout_tmp_dir}/static_parser_tmp_outputs"
+mkdir -p "$static_parser_logs_dir"
+declare -a parser_rcs=()
+declare -a parser_pids=()
+
+run_static_parser()
+{
+    local analysis="$1"
+    local private_log="$2"
+    local parser="${gpuscout_dir}/analysis_nvidia/parser_sass_${analysis}"
+    local parser_start
+    local parser_end
+    local parser_time
+    local parser_rc
+
+    parser_start=$(date +%s.%N)
+    # Store the parser's own terminal output in a private log.
+    if "$parser" "$exe_sass" "$exe_ptx" >"$private_log" 2>&1; then
+        parser_rc=0
+    else
+        parser_rc=$?
     fi
 
-    if [ "${#extracted_cubin_kernels[@]}" -eq 0 ]; then
-        echo "ERROR: No CUDA kernels were found in generated SASS: ${sass_file}"
-        exit 1
-    fi
+    parser_end=$(date +%s.%N)
+    parser_time=$(awk "BEGIN {print $parser_end - $parser_start}")
+    # The function may run in a background process. Therefore, append the measured time to its private log.
+    echo "== Static parser time for $analysis: ${parser_time}s" >> "$private_log"
+    return "$parser_rc"
 }
 
-# Extract a readable kernel base name from a mangled symbol.
-# Example: _ZN5cuZFP11cudaDecode1IxEEv... -> cudaDecode1
-# extract_kernel_base_name_from_symbol () {
-#     local symbol="$1"
-#     local rest component_len component base_name=""
-#     local fallback="${symbol}"
+for analysis in "${requested_analyses[@]}"; do
+    parser="${gpuscout_dir}/analysis_nvidia/parser_sass_${analysis}"
+    if [ ! -x "$parser" ]; then
+        echo "ERROR: Static parser not found or not executable: $parser" >&2
+        exit 1
+    fi
+done
 
-#     fallback="${fallback%%(*}"
-#     fallback="${fallback##*::}"
-#     fallback="${fallback%%<*}"
-#     fallback="$(trim_whitespace "${fallback}")"
+if [ "$performance_mode" = true ]; then
+    # Run static parsers in parallel
+    echo "== Running NVIDIA static parsers in parallel"
+    for i in "${!requested_analyses[@]}"; do
+        analysis="${requested_analyses[$i]}"
 
-#     if [[ "${symbol}" == _ZN* ]]; then
-#         rest="${symbol#_ZN}"
-#     elif [[ "${symbol}" == _Z* ]]; then
-#         rest="${symbol#_Z}"
-#     else
-#         if [ -n "${fallback}" ]; then
-#             printf '%s' "${fallback}"
-#         else
-#             printf '%s' "${symbol}"
-#         fi
-#         return
-#     fi
+        private_log="${static_parser_logs_dir}/${analysis}.log"
+        : > "$private_log"
+        run_static_parser "$analysis" "$private_log" &
+        parser_pids[$i]=$!
+    done
 
-#     while [[ "${rest}" =~ ^([0-9]+) ]]; do
-#         component_len="${BASH_REMATCH[1]}"
-#         rest="${rest#${component_len}}"
-
-#         if [ "${#rest}" -lt "${component_len}" ]; then
-#             break
-#         fi
-
-#         component="${rest:0:${component_len}}"
-#         rest="${rest:${component_len}}"
-#         base_name="${component}"
-#     done
-
-#     if [ -n "${base_name}" ]; then
-#         printf '%s' "${base_name}"
-#     elif [ -n "${fallback}" ]; then
-#         printf '%s' "${fallback}"
-#     else
-#         printf '%s' "${symbol}"
-#     fi
-# }
-
-# Build de-duplicated NCU kernel patterns for auto mode from mangled symbols.
-# build_auto_ncu_kernel_patterns () {
-#     local kernel base_name
-
-#     auto_ncu_kernel_patterns=()
-
-#     for kernel in "${top_kernels[@]}"; do
-#         base_name="$(extract_kernel_base_name_from_symbol "${kernel}")"
-#         base_name="$(trim_whitespace "${base_name}")"
-#         if [ -z "${base_name}" ]; then
-#             continue
-#         fi
-#         if ! array_contains "${base_name}" "${auto_ncu_kernel_patterns[@]}"; then
-#             auto_ncu_kernel_patterns+=("${base_name}")
-#         fi
-#     done
-
-#     if [ "${#auto_ncu_kernel_patterns[@]}" -eq 0 ]; then
-#         auto_ncu_kernel_patterns=("${top_kernels[@]}")
-#     fi
-# }
-
-kernels_selection_mode="user"
-ncu_kernel_base_args=()
-if [ -z "${kernels_arg:-}" ]; then
-    extract_kernels_from_generated_sass "${gpuscout_tmp_dir}/nvdisasm-executable-${run_prefix}-sass.txt"
-    top_kernels=("${extracted_cubin_kernels[@]}")
-    # build_auto_ncu_kernel_patterns 
-    # top_kernels=("${auto_ncu_kernel_patterns[@]}")
-    ncu_kernel_base_args=(--kernel-name-base mangled)
-    kernels_selection_mode="auto_from_generated_sass"
-else
-    parse_csv_list "${kernels_arg}" "kernels"
-    ncu_kernel_base_args=(--kernel-name-base function)
-    top_kernels=("${parsed_csv_list[@]}")
-fi
-
-if [ -z "${analysis_arg:-}" ]; then
-    enabled_analyses=("${valid_analyses[@]}")
-else
-    parse_csv_list "${analysis_arg}" "analysis"
-    enabled_analyses=("${parsed_csv_list[@]}")
-fi
-
-
-ncu_collection_kernels=("${top_kernels[@]}")
-
-echo "Selected kernels for NCU collection: $(join_by_comma "${ncu_collection_kernels[@]}")"
-echo "Selected analyses: $(join_by_comma "${enabled_analyses[@]}")"
-echo "Kernel selection mode: ${kernels_selection_mode}"
-
-# Always apply end-to-end kernel filtering based on the effective kernel set.
-kernel_filter_csv="$(join_by_comma "${top_kernels[@]}")"
-
-# Build a comma-separated metric list for NCU (de-duplicated).
-# If `json=true`, include metrics needed by JSON export as well.
-_metrics_set=()
-_add_metrics () {
-    local m
-    for m in "$@"; do
-        if ! array_contains "$m" "${_metrics_set[@]}"; then
-            _metrics_set+=("$m")
+    # Wait for every parser and store its exit code.
+    for i in "${!requested_analyses[@]}"; do
+        if wait "${parser_pids[$i]}"; then
+        parser_rcs[$i]=0
+        else
+        parser_rcs[$i]=$?
         fi
     done
-}
-_metrics_csv () { # Output the metrics as a comma-separated string for NCU
-    local IFS=,
-    printf '%s' "${_metrics_set[*]}"
-}
+else
+    # Run static parsers sequentially
+    echo "== Running NVIDIA static parsers sequentially"
+    for i in "${!requested_analyses[@]}"; do
+        analysis="${requested_analyses[$i]}"
 
+        private_log="${static_parser_logs_dir}/${analysis}.log"
+        : > "$private_log"
+
+        if run_static_parser "$analysis" "$private_log"; then
+        parser_rcs[$i]=0
+        else
+        parser_rcs[$i]=$?
+        fi
+    done
+fi
+
+parser_failed=false
+for i in "${!requested_analyses[@]}"; do
+    analysis="${requested_analyses[$i]}"
+    parser_rc="${parser_rcs[$i]}"
+    private_log="${static_parser_logs_dir}/${analysis}.log"
+    # Print the parser output together with its execution time.
+    if [ -s "$private_log" ]; then
+        cat "$private_log"
+    fi
+
+    if [ "$parser_rc" -eq 0 ]; then
+        # A static bottleneck candidate was detected.
+        # Only these analyses continue to dynamic profiling and merge analysis.
+        enabled_analyses+=("$analysis")
+        echo "   Result: candidate detected"
+    elif [ "$parser_rc" -eq 1 ]; then
+        # No static candidate means that no dynamic profiling is required for this analysis, even when it was manually selected.
+        echo "   Result: no candidate detected - skipping analysis"
+    else
+        parser_failed=true
+        echo "ERROR: Static parser '$analysis' failed with exit code $parser_rc." >&2
+    fi
+done
+if [ "$parser_failed" = true ]; then
+    echo "ERROR: One or more NVIDIA static parsers failed." >&2
+    exit 1
+fi
+
+end_static_parser=$(date +%s.%N)
+static_parser_time=$(awk "BEGIN {print $end_static_parser - $start_static_parser}")
+echo ""
+echo "==== Static parsing summary"
+echo "== Enabled analyses: $(join_by_comma "${enabled_analyses[@]}")"
+
+########################################################################
+# Build Candidate Kernel -> Analysis Mapping
+########################################################################
+candidate_kernels=()
+declare -A kernel_demangled=()
+declare -A kernel_analyses=()
+if ! command -v jq >/dev/null 2>&1; then
+    echo "ERROR: jq is required to read NVIDIA static analysis results." >&2
+    exit 1
+fi
+
+for analysis in "${enabled_analyses[@]}"; do
+    static_result_file="${gpuscout_tmp_dir}/static_results/${analysis}.json"
+    if [ ! -s "${static_result_file}" ]; then
+        echo "ERROR: Missing static result for analysis: ${analysis}" >&2
+        exit 1
+    fi
+
+    while IFS=$'\t' read -r mangled demangled; do
+        [ -z "${mangled}" ] && continue
+
+        if [ -z "${kernel_analyses[$mangled]+x}" ]; then
+            candidate_kernels+=("${mangled}")
+            kernel_demangled["${mangled}"]="${demangled:-$mangled}"
+            kernel_analyses["${mangled}"]="${analysis}"
+        else
+            kernel_analyses["${mangled}"]+=" ${analysis}"
+        fi
+    done < <(jq -r '.candidate_kernels[]? | [.name, .demangled] | @tsv' "${static_result_file}")
+done
+
+
+########################################################################
+# Select Candidate Kernels for NCU and Merge Analysis
+########################################################################
+ncu_collection_kernels=()
+selected_candidate_kernels=()
+ncu_kernel_base_args=()
+
+if [ -n "${kernels_arg:-}" ]; then
+    # --kernels accepts simple function names without namespace, template arguments, or function parameters.
+    #
+    # Examples:
+    #   Candidate: foo(float*)             User input: foo
+    #   Candidate: ns::foo(float*)         User input: foo
+    #   Candidate: ns::foo<float>(float*)  User input: foo
+    kernels_selection_mode="user_function"
+    parse_csv_list "${kernels_arg}" "kernels"
+    requested_kernels=("${parsed_csv_list[@]}")
+
+    for requested_kernel in "${requested_kernels[@]}"; do
+        request_matched=false
+        for mangled in "${candidate_kernels[@]}"; do
+            demangled="${kernel_demangled[$mangled]}"
+            # Remove function parameters: ns::foo<float>(float*) -> ns::foo<float>
+            function_without_parameters="${demangled%%(*}"
+            # Remove namespace: ns::foo<float> -> foo<float>
+            unqualified_function="${function_without_parameters##*::}"
+            # Remove template arguments: foo<float> -> foo
+            candidate_function="${unqualified_function%%<*}"
+            # Remove a possible return type: void foo -> foo
+            candidate_function="${candidate_function##* }"
+
+            if [ "${requested_kernel}" = "${candidate_function}" ]; then
+                request_matched=true
+                if ! array_contains "${mangled}" "${selected_candidate_kernels[@]}"; then
+                    selected_candidate_kernels+=("${mangled}")
+                fi
+            fi
+        done
+
+        if [ "${request_matched}" = false ]; then
+            echo "No bottleneck candidate detected for user-selected kernel: ${requested_kernel}"
+        fi
+    done
+elif [ "${#nsys_hotspot_kernels[@]}" -gt 0 ]; then
+    # Hotspot kernels identified by nsys and then filtered by static parser candidate kernels
+    kernels_selection_mode="nsys_demangled"
+
+    for requested_kernel in "${nsys_hotspot_kernels[@]}"; do
+        request_matched=false
+        for mangled in "${candidate_kernels[@]}"; do
+            demangled="${kernel_demangled[$mangled]}"
+            if [ "${requested_kernel}" = "${demangled}" ]; then
+                request_matched=true
+                if ! array_contains "${mangled}" "${selected_candidate_kernels[@]}"; then
+                    selected_candidate_kernels+=("${mangled}")
+                fi
+            fi
+        done
+
+        if [ "${request_matched}" = false ]; then
+            echo "No bottleneck candidate detected for user-selected kernel: ${requested_kernel}"
+        fi
+    done
+else
+    # All statically detected candidate kernels
+    kernels_selection_mode="static_candidates"
+    selected_candidate_kernels=("${candidate_kernels[@]}")
+fi
+
+# Filter enabled analyses by selected candidate kernels if --kernels or --nsys-hotspot was specified. This ensures that only analyses relevant to the selected kernels are executed.
+selected_analyses=()
+for analysis in "${enabled_analyses[@]}"; do
+    analysis_required=false
+
+    for kernel in "${selected_candidate_kernels[@]}"; do
+        for kernel_analysis in ${kernel_analyses[$kernel]:-}; do
+            if [ "${kernel_analysis}" = "${analysis}" ]; then
+                analysis_required=true
+                break 2
+            fi
+        done
+    done
+
+    if [ "${analysis_required}" = true ]; then
+        selected_analyses+=("${analysis}")
+    fi
+done
+enabled_analyses=("${selected_analyses[@]}")
+
+# Build Per-Analysis Kernel Filters for Merge Analysis
+declare -A analysis_kernel_filters=()
+for analysis in "${enabled_analyses[@]}"; do
+    analysis_kernels=()
+    for kernel in "${selected_candidate_kernels[@]}"; do
+        for kernel_analysis in ${kernel_analyses[$kernel]:-}; do
+            if [ "${kernel_analysis}" = "${analysis}" ]; then
+                analysis_kernels+=("${kernel}")
+                break
+            fi
+        done
+    done
+    analysis_kernel_filters["${analysis}"]="$(join_by_comma "${analysis_kernels[@]}")"
+done
+
+ncu_kernel_base_args=(--kernel-name-base mangled)
+ncu_collection_kernels=("${selected_candidate_kernels[@]}")
+
+echo ""
+echo "======================================================================================================"
+echo "Kernel and analysis selection"
+echo "======================================================================================================"
+echo "== Kernel selection mode: ${kernels_selection_mode}"
+echo "== Selected analyses: $(join_by_comma "${enabled_analyses[@]}")"
+
+for kernel in "${selected_candidate_kernels[@]}"; do
+    echo ""
+    echo "==== Selected kernel: ${kernel_demangled[$kernel]}"
+    echo "== Mangled: ${kernel}"
+    echo "== Analyses: ${kernel_analyses[$kernel]}"
+done
+
+# Merge analysis binaries consume mangled symbols.
+# Use a non-matching sentinel when no candidate kernel is selected;
+# an empty filter could otherwise be interpreted as "all kernels" downstream.
+if [ "${#selected_candidate_kernels[@]}" -gt 0 ]; then
+    kernel_filter_csv="$(join_by_comma "${selected_candidate_kernels[@]}")"
+else
+    # No selected candidate kernel. Prevent an empty filter from being interpreted as "all kernels" in automatic mode.
+    kernel_filter_csv="__gpuscout_no_selected_kernel__"
+fi
+
+########################################################################
+# Collect PC-Sampling Stall Information
+########################################################################
+# These analyses consume PC-sampling stall information during merge.
+pc_sampling_analyses=(
+    register_spilling
+    use_restrict
+    vectorization
+    global_atomics
+    warp_divergence
+    use_texture
+    use_shared
+)
+
+pc_sampling_required=false
+for kernel in "${selected_candidate_kernels[@]}"; do
+    for analysis in ${kernel_analyses[$kernel]:-}; do
+        if array_contains "${analysis}" "${pc_sampling_analyses[@]}"; then
+            pc_sampling_required=true
+            break 2
+        fi
+    done
+done
+
+pcsampling_time=0
+echo ""
+echo "======================================================================================================"
+echo "PC sampling"
+echo "======================================================================================================"
+if [ "${dry_run}" = false ] && [ "${pc_sampling_required}" = true ]; then
+    echo "Getting warp stall reasons . . . . . . . . . . . . . . . "
+    start_pcsampling=$(date +%s.%N)
+    source "${gpuscout_dir}/sampling_utilities/generate_sampling_stalls.sh"
+    cp ${gpuscout_dir}/sampling_utilities/sampling_utility/pcsampling_${run_prefix}.txt ${gpuscout_tmp_dir}/pcsampling_${run_prefix}.txt
+    end_pcsampling=$(date +%s.%N)
+    pcsampling_time=$(awk "BEGIN {print $end_pcsampling - $start_pcsampling}")
+else
+    echo "Skipping PC sampling: no selected candidate analysis requires stall samples."
+fi
+
+########################################################################
+# Register the metrics required for each analysis.
+########################################################################
 # Per-analysis metric requirements (must match parser_metrics.hpp names).
 # Register spilling (includes load_data_memory_flow helper metrics)
 _metrics_register_spilling=(
@@ -330,51 +509,101 @@ _metrics_json_export=(
             smsp__warp_issue_stalled_mio_throttle_per_warp_active.pct
             smsp__warp_issue_stalled_tex_throttle_per_warp_active.pct
         )
+########################################################################
+# Build Per-Kernel Metric Requirements
+########################################################################
+declare -A kernel_metrics=()
 
-# for analysis in "${enabled_analyses[@]}"; do
-#     case "$analysis" in
-#         register_spilling)   _add_metrics "${_metrics_register_spilling[@]}" ;;
-#         use_restrict)        _add_metrics "${_metrics_use_restrict[@]}" ;;
-#         vectorization)       _add_metrics "${_metrics_vectorization[@]}" ;;
-#         global_atomics)      _add_metrics "${_metrics_global_atomics[@]}" ;;
-#         warp_divergence)     _add_metrics "${_metrics_warp_divergence[@]}" ;;
-#         use_texture)         _add_metrics "${_metrics_use_texture[@]}" ;;
-#         use_shared)          _add_metrics "${_metrics_use_shared[@]}" ;;
-#         datatype_conversion) _add_metrics "${_metrics_datatype_conversion[@]}" ;;
-#         deadlock_detection)  : ;;
-#         *)
-#             echo "ERROR: Unknown analysis name in enabled_analyses: $analysis"
-#             exit 1
-#             ;;
-#     esac
-# done
-# Refactor the above to avoid code duplication and allow easier addition of new analyses in the future.
-for analysis in "${enabled_analyses[@]}"; do
-    if [ "${analysis}" = "deadlock_detection" ]; then
-        continue
+_add_kernel_metric()
+{
+    local kernel="$1"
+    local metric="$2"
+    local current_metrics="${kernel_metrics[$kernel]:-}"
+
+    # Metric IDs contain no spaces, so a space-separated list is sufficient.
+    case " ${current_metrics} " in
+        *" ${metric} "*)
+            ;;
+        *)
+            if [ -n "${current_metrics}" ]; then
+                kernel_metrics["${kernel}"]+=" ${metric}"
+            else
+                kernel_metrics["${kernel}"]="${metric}"
+            fi
+            ;;
+    esac
+}
+
+_add_analysis_metrics_to_kernel()
+{
+    local target_kernel="$1"
+    local target_array_name="$2"
+    local -n metrics_ref="${target_array_name}"
+    local metric
+
+    for metric in "${metrics_ref[@]}"; do
+        _add_kernel_metric "${target_kernel}" "${metric}"
+    done
+}
+
+ncu_metrics_required=false
+
+for kernel in "${selected_candidate_kernels[@]}"; do
+    for analysis in ${kernel_analyses[$kernel]:-}; do
+        # deadlock_detection currently requires no NCU metrics.
+        if [ "${analysis}" = "deadlock_detection" ]; then
+            continue
+        fi
+
+        array_name="_metrics_${analysis}"
+
+        if ! declare -p "${array_name}" >/dev/null 2>&1; then
+            echo "ERROR: Missing metric definition for analysis: ${analysis}"
+            exit 1
+        fi
+
+        _add_analysis_metrics_to_kernel "${kernel}" "${array_name}"
+    done
+
+    if [ "${json}" = true ]; then
+        for metric in "${_metrics_json_export[@]}"; do
+            _add_kernel_metric "${kernel}" "${metric}"
+        done
     fi
 
-    if ! array_contains "${analysis}" "${valid_analyses[@]}"; then
-        echo "ERROR: Unknown analysis name in enabled_analyses: $analysis"
-        exit 1
+    if [ -n "${kernel_metrics[$kernel]:-}" ]; then
+        ncu_metrics_required=true
     fi
-
-    array_name="_metrics_${analysis}"
-    declare -n current_metrics="${array_name}"
-
-    _add_metrics "${current_metrics[@]}"
 done
 
-if [ "$json" = true ]; then
-    _add_metrics "${_metrics_json_export[@]}"
-fi
+echo ""
+echo "======================================================================================================"
+echo "NCU profiling plan"
+echo "======================================================================================================"
 
-metrics_csv="$(_metrics_csv)" # This is the final comma-separated metric list to pass to NCU. It is de-duplicated and includes all metrics needed by the selected analyses and JSON export (if enabled).
-ncu_metrics_required=false
-if [ -n "${metrics_csv}" ]; then
-    ncu_metrics_required=true
-fi
+for kernel in "${selected_candidate_kernels[@]}"; do
+    echo ""
+    echo "==== Kernel: ${kernel_demangled[$kernel]}"
+    echo "== Mangled: ${kernel}"
+    echo "== Analyses: ${kernel_analyses[$kernel]}"
+    echo "== Required metrics:"
 
+    if [ -n "${kernel_metrics[$kernel]:-}" ]; then
+        for metric in ${kernel_metrics[$kernel]}; do
+            echo "   ${metric}"
+        done
+    else
+        echo "   (none)"
+    fi
+done
+########################################################################
+# Metric Collection
+########################################################################
+echo ""
+echo "======================================================================================================"
+echo "NCU metric collection"
+echo "======================================================================================================"
+metrics_time=0
 if [ "$dry_run" = false ]; then
     if [ "$ncu_metrics_required" = true ]; then
         echo "Collecting NCU metrics . . . . . . . . . . . . . . . "
@@ -388,23 +617,36 @@ if [ "$dry_run" = false ]; then
         rm -f "${metrics_out}"
 
         for kernel in "${ncu_collection_kernels[@]}"; do
+        # Collect only the metrics required by the analyses detected for this kernel. 
+            echo ""
             echo "Profiling NCU metrics for kernel pattern: ${kernel}"
+            kernel_metrics_list="${kernel_metrics[$kernel]:-}"
+            if [ -z "${kernel_metrics_list}" ]; then
+                echo "Skipping kernel with no required NCU metrics: ${kernel}"
+                continue
+            fi
+             # Convert the internal space-separated list to the comma-separated format expected by NCU.
+            kernel_metrics_csv="${kernel_metrics_list// /,}"
+
             tmp_csv="$(mktemp)"
 
             # skip warmup iterations to get more accurate metrics for the steady-state execution of the kernel
             # launch_count=1 to run only one instance of the kernel and get per-kernel metrics 
-            ncu -f --csv --log-file "${tmp_csv}" --print-units base --print-kernel-base mangled \
+            if ncu -f --csv --log-file "${tmp_csv}" --print-units base --print-kernel-base mangled \
                 "${ncu_kernel_base_args[@]}" \
                 --kernel-name "${kernel}" \
                 --launch-count 1 \
-                --metrics "${metrics_csv}" \
-                ${executable} ${args}
-            # ncu -f --csv --log-file "${tmp_csv}" --print-units base --print-kernel-base mangled \
-            #     "${ncu_kernel_base_args[@]}" \
-            #     --kernel-name "${kernel}" -s 5 --launch-count 1 \
-            #     --metrics "${metrics_csv}" \
-            #     ${executable} ${args}
-            append_ncu_csv_rows "${tmp_csv}" "${metrics_out}"
+                --metrics "${kernel_metrics_csv}" \
+                ${executable} ${args}; then 
+                append_ncu_csv_rows "${tmp_csv}" "${metrics_out}"
+            # otherwise, if NCU fails, print the error message and exit with the same code.
+            else
+                ncu_rc=$?
+                cat "${tmp_csv}" >&2
+                rm -f "${tmp_csv}"
+                echo "ERROR: NCU profiling failed for kernel '$kernel' with exit code $ncu_rc." >&2
+                exit "$ncu_rc"
+            fi
         done
 
         if [ ! -f "${metrics_out}" ]; then
@@ -422,26 +664,20 @@ if [ "$dry_run" = false ]; then
     fi
 fi
 
-
+########################################################################
+# Merge Analysis
+########################################################################
 cd ${gpuscout_dir}/analysis_nvidia
 
-hpc_sass="${gpuscout_tmp_dir}/nvdisasm-hpctoolkit-${executable_filename}-sass.txt"
-exe_sass="${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt"
-exe_ptx="${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt"
-sampling="${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt"
-metrics="${gpuscout_tmp_dir}/${run_prefix}_metrics_list"
-reg_exe="${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt"
-reg_hpc="${gpuscout_tmp_dir}/nvdisasm-registers-hpctoolkit-${executable_filename}-sass.txt"
-
-args_register_spilling=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_exe" "$json" "$gpuscout_output_dir" "$sms" "${kernel_filter_csv}")
-args_use_restrict=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_hpc" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_vectorization=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_hpc" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_global_atomics=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_warp_divergence=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_use_texture=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_use_shared=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_datatype_conversion=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
-args_deadlock_detection=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${kernel_filter_csv}")
+args_register_spilling=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_exe" "$json" "$gpuscout_output_dir" "$sms" "${analysis_kernel_filters[register_spilling]}")
+args_use_restrict=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_hpc" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[use_restrict]}")
+args_vectorization=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_hpc" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[vectorization]}")
+args_global_atomics=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[global_atomics]}")
+args_warp_divergence=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[warp_divergence]}")
+args_use_texture=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[use_texture]}")
+args_use_shared=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[use_shared]}")
+args_datatype_conversion=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[datatype_conversion]}")
+args_deadlock_detection=("$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir" "${analysis_kernel_filters[deadlock_detection]}")
 
 start_analysis=$(date +%s.%N)
 
@@ -531,11 +767,18 @@ if [ "$performance_mode" = false ]; then
         fi
         echo "Combining above results for ${readable_label} analysis . . . . . . . . . . . . . . . "
         local t0 t1 dt
+        local command_rc
         t0=$(date +%s.%N)
-        "$@"
+        # Collect the exit code of the command to return it after timing.
+        if "$@"; then
+            command_rc=0
+        else
+            command_rc=$?
+        fi
         t1=$(date +%s.%N)
         dt=$(awk "BEGIN {print $t1 - $t0}")
         echo "Time for ${readable_label}: ${dt}s"
+        return "$command_rc"
     }
     # Run only the analyses selected in `enabled_analyses` above.
     for analysis in "${enabled_analyses[@]}"; do
@@ -547,7 +790,13 @@ if [ "$performance_mode" = false ]; then
         array_name="args_${analysis}"
         declare -n current_args="$array_name"
 
-        timed_run "${analysis}" "${binary}" "${current_args[@]}"
+        if timed_run "${analysis}" "${binary}" "${current_args[@]}"; then
+            :
+        else
+            analysis_rc=$?
+            echo "ERROR: Merge analysis '$analysis' failed with exit code $analysis_rc." >&2
+            exit "$analysis_rc"
+        fi
     done
 else
     # Use Multi-Threading for faster analysis -> each analysis within its own thread
@@ -591,17 +840,7 @@ else
         pids+=("$!")
     }
 
-    echo "Launching NVIDIA SASS static analyses in parallel..."
-
-    # run register_spilling   ./merge_analysis_register_spilling   "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_exe" "$json" "$gpuscout_output_dir" "$sms"
-    # run use_restrict        ./merge_analysis_use_restrict        "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_hpc" "$json" "$gpuscout_output_dir"
-    # run vectorization       ./merge_analysis_vectorization       "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$reg_hpc" "$json" "$gpuscout_output_dir"
-    # run global_atomics      ./merge_analysis_global_atomics      "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir"
-    # run warp_divergence     ./merge_analysis_warp_divergence     "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir"
-    # run use_texture         ./merge_analysis_use_texture         "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir"
-    # run use_shared          ./merge_analysis_use_shared          "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir"
-    # run datatype_conversion ./merge_analysis_datatype_conversion "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir"
-    # run deadlock_detection  ./merge_analysis_deadlock_detection  "$hpc_sass" "$exe_sass" "$exe_ptx" "$sampling" "$metrics" "$json" "$gpuscout_output_dir"
+    echo "Launching NVIDIA merge analyses in parallel..."
     # Launch all analyses in parallel
     for analysis in "${enabled_analyses[@]}"; do
         binary="./merge_analysis_${analysis}"
@@ -626,9 +865,23 @@ else
     done
 
     # print outputs of all analyses in order and check for any failures
-    for name in "${names[@]}"; do
+    analysis_failed=false
+    for i in "${!names[@]}"; do
+        name="${names[$i]}"
         cat "${analysis_logs_dir}/${name}.log"
+
+        if [ "${rc[$i]}" -ne 0 ]; then
+            analysis_failed=true
+            echo "ERROR: Merge analysis '$name' failed with exit code ${rc[$i]}." >&2
+        fi
     done
+
+    if [ "$analysis_failed" = true ]; then
+        echo "ERROR: One or more NVIDIA merge analyses failed." >&2
+        exit 1
+    fi
+
+    echo "All NVIDIA merge analyses completed!"
 fi
 echo "All NVIDIA static analyses completed!"
 
@@ -636,8 +889,11 @@ echo "All NVIDIA static analyses completed!"
 
 if [ "$json" = true ]; then
 
+echo ""
 echo "======================================================================================================"
-echo "Generating JSON output . . . . . . . . . . . . . . . "
+echo "======== JSON export"
+echo "======================================================================================================"
+echo "==== Generating result JSON"
 
 ./save_to_json ${gpuscout_output_dir} ${gpuscout_tmp_dir}/result-${run_prefix} ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-registers-executable-${executable_filename}-sass.txt ${gpuscout_tmp_dir}/nvdisasm-executable-${executable_filename}-ptx.txt ${gpuscout_tmp_dir}/pcsampling_${executable_filename}.txt ${gpuscout_tmp_dir}/${run_prefix}_metrics_list ${sms} "${kernel_filter_csv}"
 
@@ -646,13 +902,18 @@ fi
 end_analysis=$(date +%s.%N)
 analysis_time=$(awk "BEGIN {print $end_analysis - $start_analysis}")
 
+echo ""
 echo "======================================================================================================"
-echo "Time for Static Code Analysis: ${static_time}s"
+echo "======== Execution summary"
+echo "======================================================================================================"
+echo "Time for Static Preparation:   ${static_prep_time}s"
+echo "Time for Static Detection:     ${static_parser_time}s"
 if [ "$dry_run" = false ]; then
     echo "Time for PC Sampling:          ${pcsampling_time}s"
     echo "Time for Metrics Collection:   ${metrics_time}s"
 fi
 echo "Time for Merging Analysis:     ${analysis_time}s"
+echo "Total time:                    $(awk "BEGIN {print $static_prep_time + $static_parser_time + $pcsampling_time + $metrics_time + $analysis_time}")s"
 echo "======================================================================================================"
 
 cd ..

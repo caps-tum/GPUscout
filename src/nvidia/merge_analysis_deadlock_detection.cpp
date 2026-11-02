@@ -7,51 +7,70 @@
  * @author Soumya Sen
  */
 
-#include "parser_sass_deadlock_detection.hpp"
 #include "../utilities/json.hpp"
+#include "../utilities/helper.hpp"
 #include "kernel_filter.hpp"
 #include <cstring>
 #include <cstring>
 #include <fstream>
+#include <iostream>
 
 using json = nlohmann::json;
 
 /// @brief Detects deadlock in code
-/// @param detection_map Analysis for deadlock detection
-json merge_analysis_deadlock_detection(std::unordered_map<std::string, deadlock_detect> detection_map, const std::vector<std::string> &kernel_filters)
+/// @param static_result Static deadlock detection result produced by parser_deadlock_detection
+json merge_analysis_deadlock_detection(const json& static_result, const std::vector<std::string> &kernel_filters)
 {
-    json result;
+    json final_result = json::object();
+    const auto& result = static_result["result"];
 
-    for (auto [k_sass, v_sass] : detection_map)
+    for (const auto& [krn_name, kernel_result] : result.items())
     {
-        json kernel_result;
-        kernel_result["metrics"] = {
-            {"deadlock_detect_flag", v_sass.deadlock_detect_flag}
-        };
-
-        // Fix for blank kernel name appearing in the analysis_map
-        if (k_sass == "")
-        {
-            break;
-        }
-        if (!kernel_matches_filter(k_sass, kernel_filters))
+        if (!kernel_matches_filter(krn_name, kernel_filters))
         {
             continue;
         }
 
-        std::cout << "--------------------- Deadlock detect analysis for kernel: " << k_sass << "   --------------------- " << std::endl;
-        (v_sass.deadlock_detect_flag) ? std::cout << "WARNING   ::  Possibility of deadlock detected in kernel: " << k_sass << std::endl : std::cout << "INFO   ::  No deadlock detected in kernel: " << k_sass << std::endl;
+        const bool deadlock_detect_flag = kernel_result["metrics"]["deadlock_detect_flag"].get<bool>();
 
-        result[k_sass] = kernel_result;
+        std::cout << "--------------------- Deadlock detect analysis for kernel: " << krn_name << "   --------------------- " << std::endl;
+        (deadlock_detect_flag) ? std::cout << "WARNING   ::  Possibility of deadlock detected in kernel: " << krn_name << std::endl : std::cout << "INFO   ::  No deadlock detected in kernel: " << krn_name << std::endl;
+
+        final_result[krn_name] = kernel_result;
     }
 
-    return result;
+    return final_result;
 }
 
 int main(int argc, char **argv)
 {
+    /*! Full analysis mode:
+     *
+     * exit 0 -> successful analysis
+     * exit 1 -> missing or invalid static result
+     * exit 2 -> invalid arguments
+     */
+    if (argc != 8 && argc != 9)
+    {
+        std::cerr
+            << "Usage: " << argv[0]
+            << " <hpctoolkit-sass> <executable-sass> <executable-ptx>"
+            << " <sampling-file> <metrics-file> <save-as-json>"
+            << " <json-output-dir> [kernel-filter-csv]\n";
+        return 2;
+    }
+
     std::string filename_executable_sass = argv[2];
-    std::unordered_map<std::string, deadlock_detect> detection_map = deadlock_detection_analysis(filename_executable_sass);
+    const auto static_result_file = static_result_path(filename_executable_sass, "deadlock_detection");
+
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr
+            << "ERROR: Missing or invalid static deadlock-detection result: "
+            << static_result_file << std::endl;
+        return 1;
+    }
 
     int save_as_json = std::strcmp(argv[6], "true") == 0;
     std::string json_output_dir = argv[7];
@@ -61,7 +80,7 @@ int main(int argc, char **argv)
         kernel_filters = parse_kernel_filter_csv(argv[8]);
     }
 
-    json result = merge_analysis_deadlock_detection(detection_map, kernel_filters);
+    json result = merge_analysis_deadlock_detection(static_result, kernel_filters);
 
     if (save_as_json)
     {

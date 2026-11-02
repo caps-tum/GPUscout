@@ -126,7 +126,7 @@ std::unordered_map<std::string, mtc> parser_metrics(const std::string &dir, cons
 			            std::smatch line_match;
                         // Kernel name parsing - only needed once per metrics file
                         if (krn_name_set == false) {
-                            if (std::regex_match(line, line_match, kernel_name_pattern())) {
+                            if (std::regex_search(line, line_match, kernel_name_pattern())) {
                                 krn_name = kernel_names_table[line_match[1].str()];
                                 krn_name_set = true;
                             }

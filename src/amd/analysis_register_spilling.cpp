@@ -125,7 +125,7 @@ json analysis_register_spilling (
                   << std::endl;
         std::cout << "     " << mtc_obj.ID_7_2_4 << std::endl;
         std::cout << "==== total number of spill/stack memory instructions executed on all compute units"
-                  << "on the accelerator" << std::endl;
+                  << " on the accelerator" << std::endl;
         std::cout << "     " << mtc_obj.ID_15_1_9 << std::endl;
         std::cout << "==== number of cycles the address processing unit spent working on spill/stack instructions"
                   << std::endl;

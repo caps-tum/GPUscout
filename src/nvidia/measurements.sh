@@ -6,41 +6,6 @@
 echo "======================================================================================================"
 
 
-# Parse a comma-separated list, validate list syntax, trim tokens, and deduplicate.
-parse_csv_list () {
-    local raw="$1"
-    local option_name="$2"
-    local normalized token trimmed
-    local token_list=()
-
-    parsed_csv_list=()
-
-    validate_csv_list_syntax "${raw}" "${option_name}"
-    normalized="$(normalize_csv_list "${raw}")"
-
-    IFS=',' read -r -a token_list <<< "${normalized}"
-
-    for token in "${token_list[@]}"; do
-        trimmed="$(trim_whitespace "${token}")"
-        if ! array_contains "${trimmed}" "${parsed_csv_list[@]}"; then
-            parsed_csv_list+=("${trimmed}")
-        fi
-    done
-}
-
-# Check if an array contains a value
-array_contains () {
-    local needle="$1"
-    shift
-    local item
-    for item in "$@"; do
-        if [ "${item}" = "${needle}" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
 # Append only CSV data rows from a per-kernel NCU CSV.
 append_ncu_csv_rows () {
     local src="$1"
@@ -664,9 +629,8 @@ else
     for name in "${names[@]}"; do
         cat "${analysis_logs_dir}/${name}.log"
     done
-
-    echo "All NVIDIA static analyses completed!"
 fi
+echo "All NVIDIA static analyses completed!"
 
 # Merge all individual JSON files
 

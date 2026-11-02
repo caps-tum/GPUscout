@@ -111,6 +111,11 @@ Run the GPUscout.sh script, which was installed to the defined install directory
 ```bash
 ./GPUscout -t amd -r rga_path -e ../executable/gaussian -a '-q -s 2000'
 ```
+Example with explicit analysis selection:
+```bash
+./GPUscout -t amd -r rga_path -e ../executable/gaussian -a '-q -s 2000' \
+  --analysis wavefront_divergence,shared_memory
+```
 
 The following input arguments and syntax are supported:
 ```bash
@@ -124,6 +129,10 @@ Usage (AMD): ./GPUscout [-h] [--dry_run] [--verbose] -t amd -e executable [-r rg
   -a | --args : Arguments for running the binary. e.g. --args="64 2 2 temp_64 power_64 output_64.txt"
   -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)
   -p | --performance : Use a separate thread for each analysis
+  --analysis : Comma-separated analysis IDs to run. Valid IDs:
+               register_spilling,restrict,vectorized_load,atomic_instruction,
+               wavefront_divergence,shared_memory,datatype_conversion,deadlock_detection
+               If omitted, all analyses are enabled.
 ```
 
 This should automatically start analysing the code and printing recommendations on the terminal screen.

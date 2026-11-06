@@ -1,5 +1,6 @@
-#include "amd_helper.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
+#include <iostream>
 
 using json = nlohmann::json;
 

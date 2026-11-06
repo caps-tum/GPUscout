@@ -1,6 +1,6 @@
 #include "parser_metrics.hpp"
 #include "parser_liveregisters.hpp"
-#include "amd_helper.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 
 using json = nlohmann::json;

@@ -1,5 +1,5 @@
 #include "amdgcn_instructions.hpp"
-#include "amd_helper.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 
 #include <unordered_map>

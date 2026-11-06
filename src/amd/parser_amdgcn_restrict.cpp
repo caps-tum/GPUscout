@@ -1,7 +1,6 @@
-#ifndef PARSER_AMDGCN_RESTRICT_HPP
-#define PARSER_AMDGCN_RESTRICT_HPP
-
 #include "amdgcn_instructions.hpp"
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <unordered_map>
 #include <iostream>
@@ -11,6 +10,8 @@
 #include <regex>
 #include <tuple>
 #include <set>
+
+using json = nlohmann::json;
 
 /// @brief the structure contains information about the source code location of instructions in the assembly
 struct location
@@ -158,4 +159,94 @@ parser_restrict(const std::string &filename)
     return reg_map;
 }
 
-#endif // PARSER_AMDGCN_RESTRICT_HPP
+/*!
+ * Build the reusable static result for the __restrict__ analysis.
+ * All static information required by the final restrict.json output is already contained in "result"
+ */
+json build_static_restrict_result(const std::unordered_map<std::string, std::vector<reg>>& reg_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()}
+    };
+
+    for (const auto& [krn_name, reg_vec] : reg_map)
+    {
+        if (krn_name.empty())
+        {
+            break;
+        }
+
+        json krn_result = {{"occurrences", json::array()}};
+        for (const auto& reg_obj : reg_vec)
+        {
+            if (reg_obj.is_used)
+            {
+                continue;
+            }
+            krn_result["occurrences"].push_back({
+                {"severity", "INFO"}, 
+                {"pc_offset", reg_obj.PC_offset},
+                {"file_name", reg_obj.loc.file_name},
+                {"line_number", reg_obj.loc.line_num},
+                {"register", reg_obj.reg_num}
+            });
+        }
+
+        static_result["result"][krn_name] = krn_result;
+
+        if (krn_result["occurrences"].empty())
+        {
+            continue;
+        }   
+
+        static_result["candidate_kernels"].push_back(
+        {
+            {"name", krn_name},
+            {"demangled", get_demangled_kernel(krn_name, "c++filt")}
+        });
+        
+    }
+    return static_result;
+}
+
+/*!
+ * Return true if at least one register could benefit from __restrict__.
+ */
+bool has_restrict_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char **argv)
+{
+    /*! Static analysis mode:
+     *
+     *  1. Parse AMDGCN assembly.
+     *  2. Build the reusable static result.
+     *  3. Detect whether a __restrict__ candidate exists.
+     *  4. Preserve the result for the later full-analysis stage.
+     *
+     *  exit 0 -> restrict candidate detected
+     *  exit 1 -> no restrict candidate detected
+     *  exit 2 -> error
+     */
+    if (argc != 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <assembly-file>" << std::endl;
+        return 2;
+    }
+
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "restrict");
+    const auto reg_map = parser_restrict(assembly);
+    const json static_result = build_static_restrict_result(reg_map);
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static restrict result to " << static_result_file << std::endl;
+        return 2;
+    }
+    return has_restrict_candidate(static_result) ? 0 : 1;
+}
+

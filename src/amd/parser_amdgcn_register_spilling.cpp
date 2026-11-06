@@ -1,7 +1,6 @@
-#ifndef PARSER_AMDGCN_REGISTER_SPILLING_HPP
-#define PARSER_AMDGCN_REGISTER_SPILLING_HPP
-
 #include "amdgcn_instructions.hpp"
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <unordered_map>
 #include <iostream>
@@ -10,6 +9,8 @@
 #include <vector>
 #include <tuple>
 #include <regex>
+
+using json = nlohmann::json;
 
 /// @brief local memory operations can either be LOAD or STORE
 enum operation
@@ -188,4 +189,113 @@ parser_register_spilling(const std::string &filename)
     return mem_map;
 }
 
-#endif // PARSER_AMDGCN_REGISTER_SPILLING_HPP
+/*!
+ * Build the part of the final register-spilling result that can already be determined from static AMDGCN assembly analysis.
+ * The JSON structure intentionally matches the existing final output structure. 
+ * Dynamic information such as register pressure is added later.
+ */
+json build_static_register_spilling_result(const std::unordered_map<std::string, std::vector<mem>>& mem_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()}
+    };
+
+    for (const auto& [krn_name, mem_vec] : mem_map)
+    {
+        json krn_result = {
+            {"occurrences", json::array()}
+        };
+
+        // TODO: check if this is happening
+        if (krn_name == "")
+        {
+            break;
+        }
+
+        for (const auto& mem_obj : mem_vec)
+        {
+            if (mem_obj.type != WRITE && mem_obj.type != STORE)
+            {
+                continue;
+            }
+
+            json line_result = {
+                {"file_name", mem_obj.loc.file_name},
+                {"line_number", mem_obj.loc.line_num},
+                {"pc_offset", mem_obj.PC_offset},
+                {"instruction", mem_obj.name},
+                {"register", mem_obj.reg_num},
+                {"operation", mem_obj.type}
+            };
+
+            if (mem_obj.successor == true)
+            {
+                line_result["previous_compute_instruction"] = {
+                    {"instruction", mem_obj.fst.name},
+                    {"file_name", mem_obj.fst.loc.file_name},
+                    {"line_number", mem_obj.fst.loc.line_num}/*,
+                    {"pc_offset", 0} // TODO pc_offset*/
+                };
+            }
+             krn_result["occurrences"].push_back(line_result);
+        }
+        
+        static_result["result"][krn_name] = krn_result;
+
+        if (krn_result["occurrences"].empty())
+        {
+            continue;
+        }
+
+        static_result["candidate_kernels"].push_back(
+        {
+            {"name", krn_name},
+            {"demangled", get_demangled_kernel(krn_name, "c++filt")}
+        });
+    }
+
+    return static_result;
+}
+
+/*!
+ * Return true if at least one register-spilling occurrence was found during static analysis.
+ */
+bool has_register_spilling_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char **argv)
+{
+    /*! Static analysis mode:
+     *
+     *  1. Parse AMDGCN assembly.
+     *  2. Build the static part of the final analysis result.
+     *  3. Preserve the result for the later full-analysis stage.
+     *
+     *  exit 0 -> register spilling detected
+     *  exit 1 -> no register spilling detected
+     *  exit 2 -> error
+     */
+    if (argc != 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <assembly-file>" << std::endl;
+        return 2;
+    }
+
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "register_spilling");
+
+    const auto mem_map = parser_register_spilling(assembly);
+    const json static_result = build_static_register_spilling_result(mem_map);
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static register spilling result to "
+                  << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_register_spilling_candidate(static_result) ? 0 : 1;
+}

@@ -1,6 +1,6 @@
-#include "parser_amdgcn_register_spilling.hpp"
 #include "parser_liveregisters.hpp"
 #include "parser_metrics.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 
 #include <unordered_map>
@@ -11,26 +11,24 @@
 using json = nlohmann::json;
 
 json analysis_register_spilling (
-    const std::unordered_map<std::string, std::vector<mem>>& mem_map,
+    json static_result,
     std::unordered_map<std::string, mtc> mtc_map,
     std::unordered_map<std::string, std::vector<live_registers>> live_register_map)
 {
-    json result;
+    auto& result = static_result["result"];
+    for (auto& [krn_name, krn_result] : result.items())
+    { 
+        auto& occurrences = krn_result["occurrences"];
 
-    for (const auto& [krn_name, mem_vec] : mem_map)
-    {
-        // create a JSON entry for each distinctive kernel
-        json krn_result = {
-            {"occurrences", json::array()}
-        };
-
-        // TODO check if this is happening
-        if (krn_name == "")
+        if (occurrences.empty())
         {
-            break;
+            std::cout << std::endl;
+            std::cout << "==== INFO" << std::endl;
+            std::cout << "==== no register spilling detected in kernel " << krn_name << std::endl;
+            continue;
         }
-	
-	    std::cout << std::endl;
+
+        std::cout << std::endl;
         std::cout << "======================================================================"
                   << "================================" << std::endl;
         std::cout << "==== analysis    : register spilling" << std::endl;
@@ -38,52 +36,34 @@ json analysis_register_spilling (
         std::cout << "======================================================================"
                   << "================================" << std::endl;
         
-        bool spill_detected = false;
         
-        for (auto mem_obj : mem_vec)
+        for (auto& line_result : occurrences)
         {
-            if (mem_obj.type == WRITE || mem_obj.type == STORE)
-            {
-                spill_detected = true;
-                std::cout << std::endl; 
-		        std::cout << "==== WARNING" << std::endl;
-                std::cout << "==== register spilling detected in file " << mem_obj.loc.file_name << " at line "
-                          << mem_obj.loc.line_num << std::endl;
-                std::cout << "==== instruction: " << mem_obj.name << std::endl;
-                std::cout << "==== vdata register: " << mem_obj.reg_num << std::endl;
+            std::cout << std::endl; 
+            std::cout << "==== WARNING" << std::endl;
+            std::cout << "==== register spilling detected in file " << line_result["file_name"].get<std::string>() << " at line "
+                          << line_result["line_number"].get<int>() << std::endl;
+                std::cout << "==== instruction: " << line_result["instruction"].get<std::string>() << std::endl;
+                std::cout << "==== vdata register: " << line_result["register"].get<std::string>() << std::endl;
 
-                json line_result = {
-                    {"file_name", mem_obj.loc.file_name},
-                    {"line_number", mem_obj.loc.line_num},
-                    {"pc_offset", mem_obj.PC_offset},
-                    {"instruction", mem_obj.name},
-                    {"register", mem_obj.reg_num},
-                    {"operation", mem_obj.type}
-                };
-
-                if (mem_obj.successor == true)
+                if (line_result.contains("previous_compute_instruction"))
                 {
-                    std::cout << "==== the succeeding compute instruction using register " << mem_obj.reg_num
+                    const auto& previous = line_result["previous_compute_instruction"];
+                    std::cout << "==== the succeeding compute instruction using register " << line_result["register"].get<std::string>()
                               <<std::endl;
-                    std::cout << "     after spilling was " << mem_obj.fst.name << " in file "
-                              << mem_obj.fst.loc.file_name << " at line number " << mem_obj.fst.loc.line_num
+                    std::cout << "     after spilling was " << previous["instruction"].get<std::string>() << " in file "
+                              << previous["file_name"].get<std::string>() << " at line number " << previous["line_number"].get<int>()
                               << std::endl;
-
-                    line_result["previous_compute_instruction"] = {
-                        {"instruction", mem_obj.fst.name},
-                        {"file_name", mem_obj.fst.loc.file_name},
-                        {"line_number", mem_obj.fst.loc.line_num}/*,
-                        {"pc_offset", 0} // TODO pc_offset*/
-                    };
                 }
 
                 // --------- Register Pressure ------------------
                 // search for a match between the PC offset of the current local memory instruction and the PC offset of
                 // an entry in the live register map
+                const std::string pc_offset = line_result["pc_offset"].get<std::string>();
                 auto reg_search_it = std::find_if(
                     live_register_map[krn_name].begin(),
                     live_register_map[krn_name].end(),
-                    [&](const auto &i) { return mem_obj.PC_offset == i.pcOffset; }
+                    [&](const auto &i) { return pc_offset == i.pcOffset; }
                     );
 
                 if (reg_search_it != live_register_map[krn_name].end()) {
@@ -99,25 +79,19 @@ json analysis_register_spilling (
                 }
 
                 // TODO PC stall
-
-                if (!line_result.is_null())
-                {
-                    krn_result["occurrences"].push_back(line_result);
-                }
-            }
-        }
-
-        if (!spill_detected)
-        {
-	        std::cout << std::endl;
-            std::cout << "==== INFO" << std::endl;
-            std::cout << "==== no register spilling detected in kernel " << krn_name << std::endl;
         }
 
         // Metrics
-        auto mtc_obj = mtc_map[krn_name];
+        // Avoid implicitly inserting a default metric record when this kernel has no parsed metrics.
+        const auto metric_it = mtc_map.find(krn_name);
+        if (metric_it == mtc_map.end())
+        {
+            std::cerr << "ERROR: Missing metrics for kernel " << krn_name << std::endl;
+            continue;
+        }
+        const auto& mtc_obj = metric_it->second;
 
-        auto approx_percent = mtc_obj.ID_17_3_1 ? mtc_obj.ID_15_1_9 * mtc_obj.ID_16_3_5 / mtc_obj.ID_17_3_1 : 0.0;
+        auto approx_percent = mtc_obj.ID_17_3_1 ? mtc_obj.ID_15_2_5/*mtc_obj.ID_15_1_9*/ * mtc_obj.ID_16_3_5 / mtc_obj.ID_17_3_1 : 0.0;
 
         std::cout << std::endl;
         std::cout << "==== INFO" << std::endl;
@@ -126,17 +100,15 @@ json analysis_register_spilling (
         std::cout << "     " << mtc_obj.ID_7_2_4 << std::endl;
         std::cout << "==== total number of spill/stack memory instructions executed on all compute units"
                   << " on the accelerator" << std::endl;
-        std::cout << "     " << mtc_obj.ID_15_1_9 << std::endl;
+        std::cout << "     " << mtc_obj.ID_15_2_5/*mtc_obj.ID_15_1_9*/ << std::endl;
         std::cout << "==== number of cycles the address processing unit spent working on spill/stack instructions"
                   << std::endl;
-        std::cout << "     " << mtc_obj.ID_15_1_13 << std::endl;
+        std::cout << "     " << mtc_obj.ID_15_3_0/*mtc_obj.ID_15_1_13*/ << std::endl;
         std::cout << "==== APPROXIMATE percentage of total L2 cache requests due to private memory" << std::endl;
         std::cout << "==== if the percentage is high, the memory traffic between the CUs and L2 is mostly due to"
                   << " private" << std::endl;
         std::cout << "     st memory (need to contain register spills)" << std::endl;
         std::cout << "     " << approx_percent << std::endl;
-        
-        result[krn_name] = krn_result;
     }
 
     return result;
@@ -144,30 +116,54 @@ json analysis_register_spilling (
 
 int main(int argc, char **argv)
 {
-    std::string assembly = argv[1];
-    auto mem_map = parser_register_spilling(assembly);
+    /*! Full analysis mode:
+     *  exit 0 -> successful analysis
+     *  exit 1 -> invalid static result
+     *  exit 2 -> invalid arguments
+     */
+    if (argc != 6)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <assembly-file> <metrics-dir> <livereg-dir> <save-as-json> <json-output-dir>\\n";
+        return 2;
+    }
 
-    //TODO PC stalls
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "register_spilling");
 
-    std::string mtc_dir = argv[2];
-    auto mtc_map = parser_metrics(mtc_dir, assembly);
+    json result;
+    if (!load_static_result(static_result_file, result))
+    {
+        std::cerr << "ERROR: Missing or invalid static register spilling result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
+
+    // TODO PC stalls
+
+    const std::string mtc_dir = argv[2];
+    const auto mtc_map = parser_metrics(mtc_dir, assembly);
 
     // live registers
-    std::string livereg_dir = argv[3];
-    std::unordered_map<std::string, std::vector<live_registers>> live_register_map = live_registers_analysis(livereg_dir, assembly);
+    const std::string livereg_dir = argv[3];
+    const auto live_register_map = live_registers_analysis(livereg_dir, assembly);
 
-    bool save_as_json = std::strcmp(argv[4], "true") == 0;
-    std::string json_out_dir = argv[5];
+    const bool save_as_json = std::strcmp(argv[4], "true") == 0;
+    const std::string json_out_dir = argv[5];
 
-    json result = analysis_register_spilling(mem_map, mtc_map, live_register_map);
+    result = analysis_register_spilling(result, mtc_map, live_register_map);
 
     if (save_as_json)
     {
-        std::ofstream json_file;
-        json_file.open(json_out_dir + "/register_spilling.json");
+        std::ofstream json_file(json_out_dir + "/register_spilling.json");
+        if (!json_file)
+        {
+            std::cerr << "ERROR: Could not write register_spilling.json" << std::endl;
+            return 2;
+        }
         json_file << result.dump(4);
-        json_file.close();
     }
 
     return 0;
 }
+

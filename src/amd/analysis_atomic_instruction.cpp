@@ -1,29 +1,19 @@
-#include "parser_amdgcn_atomic_instruction.hpp"
 #include "parser_metrics.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 #include <iostream>
 
 using json = nlohmann::json;
 
 json analysis_atomic_instruction(
-    const std::unordered_map<std::string, atom>& atom_map,
-    std::unordered_map<std::string, std::vector<brc>> brc_map,
+    json static_result,
     std::unordered_map<std::string, mtc> mtc_map)
 {
-    json result;
+    auto& result = static_result["result"];
+    auto& metadata = static_result["metadata"];
 
-    for (const auto& [krn_name, atom_obj] : atom_map)
+    for (const auto& [krn_name, krn_result] : result.items())
     {
-        json krn_result = {
-            {"occurrences", json::array()},
-        };
-
-        // TODO check if this is happening
-        if (krn_name == "")
-        {
-            break;
-        }
-
 	    std::cout << std::endl;
         std::cout << "======================================================================"
                   << "================================" << std::endl;
@@ -32,100 +22,72 @@ json analysis_atomic_instruction(
         std::cout << "======================================================================"
                   << "================================" << std::endl;
 
-        krn_result["shared_atomics"] = atom_obj.num_s;
+        auto& occurrences = krn_result["occurrences"];
+        const int global_atomics = metadata[krn_name]["global_atomics"].get<int>();
+        const int shared_atomics = krn_result["shared_atomics"].get<int>();
 
-        if (atom_obj.num_g > 0)
+
+        if (global_atomics > 0)
         {
 	        std::cout << std::endl;
             std::cout << "==== INFO" << std::endl;
-            std::cout << "==== number of global atomic instructions: " << atom_obj.num_g << std::endl;
+            std::cout << "==== number of global atomic instructions: " << global_atomics << std::endl;
 
             // for every occurring global atomic instruction in the kernel
-            for (const auto& gbl_atom_obj : atom_obj.gbl_atom)
+            for (const auto& occurrence : occurrences)
             {
-		        std::cout << std::endl;
-                std::cout << "==== INFO" << std::endl;
-                std::cout << "==== global atomic instruction found in file "
-                << gbl_atom_obj.loc.file_name << " at line " << gbl_atom_obj.loc.line_num
-                << " of your source code" << std::endl;
-
-                bool inside_loop = false;
-                // loop through all branch instructions in the kernel
-                for (const auto& brc_obj : brc_map[krn_name])
+                if (!occurrence["is_global"].get<bool>())
                 {
-                    if (brc_obj.tgt == gbl_atom_obj.brc &&
-                        std::stoi(brc_obj.PC_offset) > std::stoi(gbl_atom_obj.PC_offset) &&
-                        brc_obj.loop)
-                    {
-                        inside_loop = true;
-                    }
+                    continue;
                 }
 
-                if (inside_loop)
+                std::cout << std::endl;
+                std::cout << "==== INFO" << std::endl;
+                std::cout << "==== global atomic instruction found in file "
+                          << occurrence["file_name"].get<std::string>() << " at line number "
+                          << occurrence["line_number"].get<int>() << " of your source code" << std::endl;
+
+                if (occurrence["in_for_loop"].get<bool>())
                 {
                     std::cout << "==== the atomic instruction could be inside a loop" << std::endl;
                 }
-
-                krn_result["occurrences"].push_back({
-                    {"severity", "INFO"},
-                    {"file_name", gbl_atom_obj.loc.file_name},
-                    {"line_number", gbl_atom_obj.loc.line_num},
-                    {"in_for_loop", inside_loop},
-                    {"is_global", true},
-                });
             }
+		        
         }
-        else if (atom_obj.num_g == 0)
+        else if (global_atomics == 0)
         {
 	        std::cout << std::endl;
             std::cout << "==== INFO" << std::endl;
             std::cout << "==== no global atomics detected in the assembly file" << std::endl;
         }
 
-        krn_result["shared_atomics"] = atom_obj.num_s;
-        
-        if (atom_obj.num_s > 0)
+        if (shared_atomics > 0)
         {
 	        std::cout << std::endl;
             std::cout << "==== INFO" << std::endl;
             std::cout << "==== number of shared atomic instructions in the assembly file "
-                      << atom_obj.num_s << std::endl;
+                      << shared_atomics << std::endl;
             
-            for (const auto &shr_atom_obj : atom_obj.shr_atom)
+            for (const auto &occurrence : occurrences)
             {
-		        std::cout << std::endl;
-                std::cout << "==== INFO" << std::endl;
-                std::cout << "==== shared atomic instruction found in file " << shr_atom_obj.loc.file_name
-                          << " at line number " << shr_atom_obj.loc.line_num  << " of your source code. "
-                          << std::endl;
-                                
-                bool inside_loop = false;
-                // loop through all branch instructions in the kernel
-                for (const auto& brc_obj : brc_map[krn_name])
+                if (occurrence["is_global"].get<bool>())
                 {
-                    if (brc_obj.tgt == shr_atom_obj.brc &&
-                        std::stoi(brc_obj.PC_offset) > std::stoi(shr_atom_obj.PC_offset) &&
-                        brc_obj.loop)
-                    {
-                        inside_loop = true;
-                    }
+                    continue;
                 }
 
-                if (inside_loop)
+                std::cout << std::endl;
+                std::cout << "==== INFO" << std::endl;
+                std::cout << "==== shared atomic instruction found in file "
+                          << occurrence["file_name"].get<std::string>() << " at line number "
+                          << occurrence["line_number"].get<int>() << " of your source code" << std::endl;
+
+                if (occurrence["in_for_loop"].get<bool>())
                 {
                     std::cout << "==== the atomic instruction could be inside a loop" << std::endl;
                 }
-
-                krn_result["occurrences"].push_back({
-                        {"severity", "INFO"},
-                    {"file_name", shr_atom_obj.loc.file_name},
-                    {"line_number", shr_atom_obj.loc.line_num},
-                    {"in_for_loop", inside_loop},
-                    {"is_global", false},
-                });
-            }
+            }   
         }
-        else if (atom_obj.num_s == 0)
+        else if (shared_atomics == 0)
         {
 	        std::cout << std::endl;
             std::cout << "==== INFO" << std::endl;
@@ -135,7 +97,14 @@ json analysis_atomic_instruction(
         // TODO PC stall
 
         // Metrics
-        auto mtc_obj = mtc_map[krn_name];
+        // Avoid implicitly inserting a default metric record when this kernel has no parsed metrics.
+        const auto metric_it = mtc_map.find(krn_name);
+        if (metric_it == mtc_map.end())
+        {
+            std::cerr << "ERROR: Missing metrics for kernel " << krn_name << std::endl;
+            continue;
+        }
+        const auto& mtc_obj = metric_it->second;
 
 	    std::cout << std::endl;
         std::cout << "==== INFO" << std::endl;
@@ -155,12 +124,10 @@ json analysis_atomic_instruction(
         std::cout << "==== total number of L2 requests to Infinity Fabric to atomically update 32B or 64B of data in "
                      "any" << std::endl;
         std::cout << "     memory location" << std::endl;
-        std::cout << "     " << mtc_obj.ID_17_5_10 << std::endl;
+        std::cout << "     " << mtc_obj.ID_17_6_10/*ID_17_5_10*/ << std::endl;
         std::cout << "==== number of cycles a wavefront in the kernel dispatch stalled waiting on memory of any kind"
                   << std::endl;
         std::cout << "     " << mtc_obj.ID_7_2_4 << std::endl;
-
-        result[krn_name] = krn_result;
     }
 
     return result;
@@ -168,10 +135,28 @@ json analysis_atomic_instruction(
 
 int main(int argc, char **argv)
 {
+    /*! Full analysis mode:
+     *  exit 0 -> successful analysis
+     *  exit 1 -> invalid static result
+     *  exit 2 -> invalid arguments 
+     */
+    if (argc != 5)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <assembly-file> <metrics-dir> <save-as-json> <json-output-dir>\\n";
+        return 2;
+    }
+
     std::string assembly = argv[1];
-    auto tuple = parser_atomic_instruction(assembly);
-    auto atom_map = std::get<0>(tuple);
-    auto lbl_map = std::get<1>(tuple);
+    const auto static_result_file = static_result_path(assembly, "atomic_instruction");
+
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Missing or invalid static atomic instruction result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
 
     std::string mtc_dir = argv[2];
     auto mtc_map = parser_metrics(mtc_dir, assembly);
@@ -179,7 +164,7 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[3], "true") == 0;
     std::string json_out_dir = argv[4];
 
-    json result = analysis_atomic_instruction(atom_map, lbl_map, mtc_map);
+    json result = analysis_atomic_instruction(static_result, mtc_map);
 
     if (save_as_json)
     {

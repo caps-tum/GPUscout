@@ -1,7 +1,6 @@
-#ifndef PARSER_AMDGCN_SHARED_MEMORY_HPP
-#define PARSER_AMDGCN_SHARED_MEMORY_HPP
-
 #include "amdgcn_instructions.hpp"
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <iostream>
 #include <unordered_map>
@@ -9,6 +8,8 @@
 #include <string>
 #include <vector>
 #include <tuple>
+
+using json = nlohmann::json;
 
 /// @brief         count of number of instructions between start and end PC offsets in decimal
 /// @param start   PC offset in hex format
@@ -244,7 +245,7 @@ parser_shared_memory(const std::string &filename)
                 for (const auto& j : vdata)
                 {
                     int cnt_to_shrd_mem_st = 0;
-                    if (iters.find(j) == iters.end())
+                    if (iters.find(j) != iters.end())
                     {
                         auto gbl_ld = iters[j]->gbl_ld;
                         for (auto it = gbl_ld.rbegin(); it != gbl_ld.rend(); ++it)
@@ -348,4 +349,187 @@ parser_shared_memory(const std::string &filename)
     return std::make_tuple(reg_map, brc_map);
 }
 
-#endif // PARSER_AMDGCN_SHARED_MEMORY_HPP
+/*!
+ * Build the reusable static result for the shared-memory analysis.
+ * "result" keeps the existing final shared_memory.json structure.
+ */
+json build_static_shared_memory_result(const std::unordered_map<std::string, std::vector<reg>>& reg_map, const std::unordered_map<std::string, std::vector<brc>>& brc_map)
+{
+    json static_result = {
+        {"candidate_kernels", json::array()},
+        {"result", json::object()},
+    };
+
+    for (const auto& [krn_name, reg_vec] : reg_map)
+    {
+        if (krn_name.empty())
+        {
+            break;
+        }
+
+        json krn_result = {{"occurrences", json::array()}};
+
+        bool shared_recommend_flag = false;
+
+        for (auto reg_obj : reg_vec)
+        {
+            // consider only registers with load count > 0, operation count > 1 and operation count > load count
+            if (!((reg_obj.ld_count > 0) && (reg_obj.op_count > 1) && (reg_obj.op_count > reg_obj.ld_count)))
+                continue;
+        
+            // -------------------------------------------------
+            // Global loads that already use the LDS bit
+            // -------------------------------------------------
+            for (const auto& gbl_ld_obj : reg_obj.gbl_ld)
+            {
+                if (!gbl_ld_obj.lds_bit)
+                {
+                    continue;
+                }
+
+                json line_result = {
+                    {"severity", "INFO"},
+                    {"file_name", gbl_ld_obj.loc.file_name},
+                    {"line_number", gbl_ld_obj.loc.line_num},
+                    {"instruction_type", "global_load"},
+                    {"register", reg_obj.reg_num},
+                    {"uses_LDS_bit", true},
+                    {"pc_offset", gbl_ld_obj.PC_offset}
+                };
+
+                krn_result["occurrences"].push_back(line_result);
+            }
+
+            // ------------------------------------------------------------
+            // LDS writes
+            // ------------------------------------------------------------
+            for (const auto& shr_wr_obj : reg_obj.shr_wr)
+            {
+                json line_result = {
+                    {"severity", "INFO"},
+                    {"file_name", shr_wr_obj.loc.file_name},
+                    {"line_number", shr_wr_obj.loc.line_num},
+                    {"instruction_type", "lds_write"},
+                    {"register", reg_obj.reg_num},
+                    {"pc_offset", shr_wr_obj.PC_offset}
+                };
+
+                if (shr_wr_obj.cnt_to_shrd_mem_st > 0)
+                {
+                    line_result["instruction_count_to_shared_mem_store"] = shr_wr_obj.cnt_to_shrd_mem_st;
+                }
+
+                krn_result["occurrences"].push_back(line_result);
+            }
+
+            // ------------------------------------------------------------
+            // Candidate global loads without the LDS bit
+            // ------------------------------------------------------------
+            for (const auto& gbl_ld_obj : reg_obj.gbl_ld)
+            {
+                if (gbl_ld_obj.lds_bit)
+                {
+                    continue;
+                }
+
+                // branch map stores an accumulative vector of branch instructions per branch
+
+                // returns all conditional branch instructions encountered up to the end of the branch to which
+                // the global load instruction belongs
+                //for (auto j : brc_map[gbl_ld_obj.tgt_brc])
+                //{
+                    // if the branch instructions target the branch, the global load instruction belongs to
+                    //if ((j.loc.line_num != 0) && (gbl_ld_obj.tgt_brc == j.tgt))
+                bool inside_loop = false;
+                auto brc_it = brc_map.find(krn_name);
+                if (brc_it != brc_map.end())
+                {
+                    for (const auto& brc_obj : brc_it->second)
+                    {
+                        if (brc_obj.tgt == gbl_ld_obj.brc &&
+                            std::stoi(brc_obj.PC_offset) > std::stoi(gbl_ld_obj.PC_offset) &&
+                            brc_obj.loop)
+                        {
+                            inside_loop = true;
+                            break;
+                        }
+                    }
+                }
+
+                json line_result = {
+                    {"severity", "WARNING"},
+                    {"file_name", gbl_ld_obj.loc.file_name},
+                    {"line_number", gbl_ld_obj.loc.line_num},
+                    // Current candidate global-load instruction.
+                    // {"pc_offset", gbl_ld_obj.PC_offset},
+                    {"register", reg_obj.reg_num},
+                    {"global_load_count", reg_obj.ld_count},
+                    {"computation_instruction_count", reg_obj.op_count},
+                    {"computation_instruction_pc_offsets", 0}, // TODO: parser currently does not preserve these PCs.
+                    {"uses_shared_memory", false},
+                    {"in_for_loop", inside_loop}
+                };
+
+                krn_result["occurrences"].push_back(line_result);
+
+                shared_recommend_flag = true;
+            }
+        }
+
+        static_result["result"][krn_name] = krn_result;
+
+        if (!shared_recommend_flag)
+        {
+            continue;
+        }   
+
+        static_result["candidate_kernels"].push_back(
+        {
+            {"name", krn_name},
+            {"demangled", get_demangled_kernel(krn_name, "c++filt")}
+        });
+    
+    }
+
+    return static_result;
+}
+
+bool has_shared_memory_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char **argv)
+{
+    /*! Static analysis mode:
+     *
+     *  1. Parse AMDGCN assembly.
+     *  2. Build the reusable static result.
+     *  3. Detect whether a shared-memory candidate exists.
+     *  4. Preserve the result for the later full-analysis stage.
+     *
+     *  exit 0 -> shared-memory candidate detected
+     *  exit 1 -> no shared-memory candidate detected
+     *  exit 2 -> error
+     */
+    if (argc != 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <assembly-file>\\n";
+        return 2;
+    }
+
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "shared_memory");
+    auto tuple = parser_shared_memory(assembly);
+    auto reg_map = std::get<0>(tuple);
+    auto brc_map = std::get<1>(tuple);
+    const json static_result = build_static_shared_memory_result(reg_map, brc_map);
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Could not save static shared memory result to " << static_result_file << std::endl;
+        return 2;
+    }
+
+    return has_shared_memory_candidate(static_result) ? 0 : 1;
+}

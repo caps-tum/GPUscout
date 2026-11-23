@@ -1,7 +1,6 @@
-#ifndef PARSER_AMDGCN_VECTORIZED_HPP
-#define PARSER_AMDGCN_VECTORIZED_HPP
-
 #include "amdgcn_instructions.hpp"
+#include "../utilities/helper.hpp"
+#include "../utilities/json.hpp"
 
 #include <unordered_map>
 #include <iostream>
@@ -10,6 +9,8 @@
 #include <vector>
 #include <tuple>
 #include <regex>
+
+using json = nlohmann::json;
 
 struct location
 {
@@ -252,4 +253,136 @@ parser_vectorized_load(const std::string &filename)
     return std::make_tuple(ld_cnt_map, ld_map);
 }
 
-#endif // PARSER_AMDGCN_VECTORIZED_HPP
+
+/*!
+ * Build the reusable static result for the vectorized load analysis.
+ * "result" contains the information that belongs to the existing final vectorized_load.json output.
+ * "metadata" contains internal information required by later pipeline stages and is not be written to the final JSON output.
+ */
+json build_static_vectorized_load_result(const std::unordered_map<std::string, int>& ld_cnt_map, const std::unordered_map<std::string, std::vector<ld>>& ld_map)
+{
+    json static_result = {
+        {"result", json::object()},
+        {"metadata", json::object()},
+        {"candidate_kernels", json::array()}
+    };
+
+    for (const auto& [krn_name_1, ld_cnt] : ld_cnt_map)
+    {
+        if (krn_name_1 == "")
+        {
+            break;
+        }
+
+        json krn_result = {
+            {"total", 0},
+            {"occurrences", json::array()}
+        };
+
+        for (const auto& [krn_name_2, ld_vec] : ld_map)
+        {
+            if (krn_name_1 != krn_name_2)
+            {
+                continue;
+            }
+
+            for (const auto& ld_obj : ld_vec)
+            {
+                if (ld_obj.off.size() > 1 && ld_obj.size == "x1")
+                {
+                    krn_result["occurrences"].push_back({
+                        {"severity", "WARNING"},
+                        {"file_name", ld_obj.loc.file_name},
+                        {"line_number", ld_obj.loc.line_num},
+                        {"pc_offset", ld_obj.PC_offset},
+                        {"register", ld_obj.vaddr_srsrc},
+                        {"adjacent_memory_accesses", ld_obj.off.size()}
+                    });
+                }
+                else
+                {
+                    krn_result["occurrences"].push_back({
+                        {"severity", "INFO"},
+                        {"file_name", ld_obj.loc.file_name},
+                        {"line_number", ld_obj.loc.line_num},
+                        {"pc_offset", ld_obj.PC_offset},
+                        {"register", ld_obj.vaddr_srsrc},
+                        {"register_load_type", ld_obj.size}
+                    });
+                }
+            }
+        }
+
+        static_result["result"][krn_name_1] = krn_result;
+        static_result["metadata"][krn_name_1] = {
+            {"non_vectorized_load_count", ld_cnt}
+        };
+
+        if (krn_result["occurrences"].empty())
+        {
+            continue;
+        }   
+
+        bool is_candidate = false;
+        for (const auto& occurrence : krn_result["occurrences"])
+        {
+            if (occurrence["severity"].get<std::string>() == "WARNING")
+            {
+                is_candidate = true;
+                break;
+            }
+        }
+
+        if (is_candidate)
+        {
+            static_result["candidate_kernels"].push_back(
+            {
+                {"name", krn_name_1},
+                {"demangled", get_demangled_kernel(krn_name_1, "c++filt")}
+            });
+        }
+    }
+
+    return static_result;
+}
+
+bool has_vectorized_load_candidate(const json& static_result)
+{
+    return !static_result["candidate_kernels"].empty();
+}
+
+int main(int argc, char **argv)
+{
+    /*! Static analysis mode:
+     *
+     *  1. Parse AMDGCN assembly.
+     *  2. Build the reusable static result.
+     *  3. Detect whether a vectorized load candidate exists.
+     *  4. Preserve the static result for the later full-analysis stage.
+     *
+     *  exit 0 -> vectorized load candidate detected
+     *  exit 1 -> no vectorized load candidate detected
+     *  exit 2 -> error
+     */
+    if (argc != 2)
+    {
+        std::cerr << "Usage: " << argv[0] << " <assembly-file>\\n";
+        return 2;
+    }
+
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "vectorized_load");
+    auto tuple = parser_vectorized_load(assembly);
+    auto ld_cnt_map = std::get<0>(tuple);
+    auto ld_map = std::get<1>(tuple);
+
+    const json static_result = build_static_vectorized_load_result(ld_cnt_map, ld_map);
+
+    if (!save_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Failed to save static vectorized load result." << std::endl;
+        return 2;
+    }
+
+    return has_vectorized_load_candidate(static_result) ? 0 : 1;
+}

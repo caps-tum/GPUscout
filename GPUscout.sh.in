@@ -31,7 +31,9 @@ usage() {
       echo "  --sm_count : (Nvidia) Can be used to specify the number of streaming multiprocessors of the current GPU, as this will be used in calculations (default: 16)"
       # TODO Add if wanted for AMD
     fi
-    echo "  -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)"
+    # echo "  -j | --json : Save a JSON-formatted version of the output (Needed for the use of GPUscout-GUI)"
+    echo "  --no-json : Disable final JSON output.(Needed for the use of GPUscout-GUI, enabled by default)"
+    echo "  --no-data-flow-graph : Disable additional data-flow graph metrics (enabled by default)."  
     echo "  -p | --performance : Use a separate thread for each analysis"
     if [ "@VENDOR@" = "nvidia" ] || [ "@VENDOR@" = "all" ]; then
       echo "  --kernels : (Nvidia) Comma-separated kernel patterns for NCU collection and end-to-end kernel filtering in final analysis output."
@@ -46,7 +48,7 @@ usage() {
       echo "  --analysis : (AMD) Comma-separated analysis IDs to run. Valid IDs: "
       echo "              register_spilling,restrict,vectorized_load,atomic_instruction,"
       echo "              wavefront_divergence,shared_memory,datatype_conversion,deadlock_detection."
-      echo "              If omitted, all analyses are enabled."
+      echo "              If omitted, analyses will be selected automatically based on static detection results."
     fi
     exit 1
 }
@@ -93,7 +95,7 @@ done
 if [ "@VENDOR@" = "nvidia" ]; then
   options=$(getopt -o hvt:e:c:a:jp -l help,dry_run,verbose,type:,executable:,cubin:,args:,sm_count:,json,performance,kernels:,analysis: -- "${normalized_args[@]}")
 elif [ "@VENDOR@" = "amd" ]; then
-  options=$(getopt -o hvt:e:r:a:jp -l help,dry_run,verbose,type:,executable:,rga:,args:,sm_count:,json,performance,analysis: -- "${normalized_args[@]}")
+  options=$(getopt -o hvt:e:r:a:jp -l help,dry_run,verbose,type:,executable:,rga:,args:,sm_count:,no-json,no-data-flow-graph,performance,analysis: -- "${normalized_args[@]}")
 else
   options=$(getopt -o hvt:e:c:r:a:jp -l help,dry_run,verbose,type:,executable:,cubin:,rga:,args:,sm_count:,json,performance,kernels:,analysis: -- "${normalized_args[@]}")
 fi
@@ -109,7 +111,8 @@ performance_mode=false
 vendor="@VENDOR@"
 dry_run=false
 verbose=false
-json=false
+json=true
+data_flow_graph=true
 executable=""
 cubin=""
 rga=""
@@ -154,8 +157,12 @@ while true; do
             verbose=true
             shift
             ;;
-        -j | --json)
-            json=true
+        --no-json)
+            json=false
+            shift
+            ;;
+        --no-data-flow-graph)
+            data_flow_graph=false
             shift
             ;;
         -p | --performance)
@@ -590,11 +597,12 @@ echo "==== Arguments for the executable file: \"$args\""
 echo "==== Dry-run: $dry_run"
 echo "==== Verbose: $verbose"
 echo "==== JSON Output: $json"
+echo "==== Data Flow Graph metrics: $data_flow_graph"
 echo "==== Performance Mode (Multi-threading): $performance_mode"
 if [ "$vendor" = "nvidia" ]; then
     echo "==== Kernels Filter: ${kernels_arg:-<not set: auto-select kernels from generated SASS (cubin-scoped)>}"
 fi
-echo "==== Analyses: ${analysis_arg:-<not set: all analyses>}"
+echo "==== Analyses: ${analysis_arg:-<not set: analyses will be selected automatically based on static assembly analysis>}"
 if [ "$vendor" = "nvidia" ]; then
     echo "==== Nsight Hotspot Kernels: ${nsys_hotspot_kernels_count:-<disabled>}"
 fi
@@ -716,44 +724,63 @@ if [ "$vendor" = "nvidia" ]; then
 elif [ "$vendor" = "amd" ]; then
     cd "${gpuscout_tmp_dir}" || exit
 
-    # creating object file
-    echo "==== creating object file"
-    start_static=$(date +%s.%N)
-    roc-obj-ls -v "${executable}" | \
-    awk '/amdgcn/{print $3}' | \
-    roc-obj-extract -o
-    #roc-obj-ls -v "${executable}" | \
-    #awk '/gfx90a/{print $3}' | \
-    #roc-obj-extract -o
+    # Static preparation: extract the AMD code object and generate AMDGCN assembly.
+    start_static_prep=$(date +%s.%N)
 
-    object_file=$(find "$gpuscout_tmp_dir" -type f -name "*.co")
-    echo "TMP: $gpuscout_tmp_dir"
+    # creating object file
+    echo "==== Creating object file"
+    # roc-obj-ls -v "${executable}" | \
+    # awk '/amdgcn/{print $3}' | \
+    # roc-obj-extract -o
 
     # Extracting mcpu name / LLVM target name
-    llvm_target_name=$(roc-obj-ls -v "${executable}" | \
+    # llvm_target_name=$(roc-obj-ls -v "${executable}" | \
+    llvm_target_name=$(llvm-readobj --offloading "${executable}" | \
     awk '/amdgcn/ {match($0, /gfx[0-9a-f]+/); print substr($0, RSTART, RLENGTH)}')
-
-
+    
+    object_file="$gpuscout_tmp_dir/${executable_filename}.co"
+    # Implement a fallback mechanism to handle cases where llvm-objcopy does not support the --dump-offload-bundle option.
+    if llvm-objcopy -h 2>&1 | grep -q -- '--dump-offload-bundle'; then
+        echo "llvm-objcopy supports --dump-offload-bundle"
+        bundle_uri=$(llvm-readobj --offloading "${executable}" | awk '/amdgcn/{print $2}')
+        llvm-objcopy --dump-offload-bundle="$bundle_uri"
+        tmp_file=$(find "$(dirname "$executable")" -maxdepth 1 -type f -name "*.co")
+        if [ -z "$tmp_file" ]; then
+            echo "ERROR: Failed to find extracted AMD code object."
+            exit 1
+        fi
+        mv "$tmp_file" "$object_file"
+    else
+        echo "llvm-objcopy does not support --dump-offload-bundle, using --dump-section=.hip_fatbin and clang-offload-bundler"
+        fatbin_file="$gpuscout_tmp_dir/${executable_filename}.fatbin"
+        llvm-objcopy --dump-section=.hip_fatbin="$fatbin_file" "${executable}"
+        bundle_target=$(clang-offload-bundler --type=o --input="$fatbin_file" --list | awk '/amdgcn/ {print; exit}')
+        clang-offload-bundler --type=o --input="$fatbin_file" --output="$object_file" --targets="$bundle_target" --unbundle
+        if [ ! -s "$object_file" ]; then
+        echo "ERROR: Failed to extract AMD GPU code object."
+        exit 1
+        fi
+        rm -f "$fatbin_file"
+    fi
+    
     # creating assembly file
-    echo "==== creating assembly file"
-
+    echo "==== Creating assembly file"
     echo "Object File: $object_file, Executable File: ${executable_filename}, LLVM Target: ${llvm_target_name}"
     #llvm-objdump -d --mcpu=gfx90a --source -l -C --symbolize-operands "$object_file" > "${executable_filename}".s
     llvm-objdump -d --mcpu="${llvm_target_name}" --source -l --symbolize-operands "$object_file" > "${executable_filename}".s
 
-    # creating file containing register pressure information
-    echo "==== creating file containing register pressure information "
-    mkdir livereg
-    "$rga" -s bin --livereg livereg/9_73_23_42_${executable_filename}-vgpr.txt --co "$object_file" # 9_73_23_42 to make kernel name extraction easier
-    "$rga" -s bin --livereg-sgpr livereg/9_73_23_42_${executable_filename}-sgpr.txt --co "$object_file"
+    end_static_prep=$(date +%s.%N)
+    static_prep_time=$(awk "BEGIN {print $end_static_prep - $start_static_prep}")
 
-    end_static=$(date +%s.%N)
-    static_time=$(awk "BEGIN {print $end_static - $start_static}")
+    assembly="${gpuscout_tmp_dir}/${executable_filename}.s"
+    metrics_dir="${gpuscout_tmp_dir}/metrics"
+    livereg_dir="${gpuscout_tmp_dir}/livereg"
 fi
 
 
 
 # Get the measurements and analysis from the measurements script
+echo "======================================================================================================"
 echo "Measurements and Analysis . . . . . . . . . . . . . . . (${gpuscout_dir}/analysis_$vendor/measurements.sh)"
 source ${gpuscout_dir}/analysis_$vendor/measurements.sh
 
@@ -762,6 +789,7 @@ echo -e "Profiling complete! Starting cleanup . . . . . . . . . . . . . . . . . 
 
 # TODO: uncomment this line when debugging
 rm -rf ${gpuscout_output_dir}
+rm -rf ${gpuscout_tmp_dir}/*_tmp_outputs
 
 # Remove the PC sampling files generate before release/production, else keep them for debug
 # rm $PWD/sampling_utilities/sampling_continuous/*_pcsampling_*.dat

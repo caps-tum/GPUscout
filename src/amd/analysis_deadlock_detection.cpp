@@ -1,26 +1,18 @@
-#include "parser_amdgcn_deadlock_detection.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
+#include <iostream>
 
 using json = nlohmann::json;
 
-json analysis_deadlock_detection(std::unordered_map<std::string, bool> deadlock_map)
+json analysis_deadlock_detection(json static_result)
 {
-    json result;
+    auto& result = static_result["result"];
 
-    for (auto [krn_name, deadlock] : deadlock_map)
+    for (const auto& [krn_name, krn_result] : result.items())
     {
-        json krn_result;
-        krn_result["metrics"] = {
-            {"deadlock_detect_flag", deadlock}
-        };
+        const bool deadlock = krn_result["metrics"]["deadlock_detect_flag"].get<bool>();
 
-        // TODO check if this is happening
-        if (krn_name == "")
-        {
-            break;
-        }
-
-	std::cout << std::endl;
+        std::cout << std::endl;
         std::cout << "======================================================================"
                   << "================================" << std::endl;
         std::cout << "==== analysis    : deadlock detection" << std::endl;
@@ -28,7 +20,7 @@ json analysis_deadlock_detection(std::unordered_map<std::string, bool> deadlock_
         std::cout << "======================================================================"
                   << "================================" << std::endl;
 
-	std::cout << std::endl;
+        std::cout << std::endl;
         std::cout << "==== INFO" << std::endl;
         if (deadlock)
         {
@@ -38,8 +30,6 @@ json analysis_deadlock_detection(std::unordered_map<std::string, bool> deadlock_
         {
             std::cout << "==== no possibility for deadlock detected in kernel " << krn_name << std::endl;
         }
-
-        result[krn_name] = krn_result;
     }
 
     return result;
@@ -47,13 +37,33 @@ json analysis_deadlock_detection(std::unordered_map<std::string, bool> deadlock_
 
 int main(int argc, char **argv)
 {
-    std::string assembly = argv[1];
-    std::unordered_map<std::string, bool> deadlock_map = parser_deadlock_detection(assembly);
+    /*! Full analysis mode:
+     *  exit 0 -> successful analysis
+     *  exit 1 -> invalid static result
+     *  exit 2 -> invalid arguments
+     */
+    if (argc != 4)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <assembly-file> <save-as-json> <json-output-dir>\\n";
+        return 2;
+    }
 
-    int save_as_json = std::strcmp(argv[2], "true") == 0;
-    std::string json_out_dir = argv[3];
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "deadlock_detection");
 
-    json result = analysis_deadlock_detection(deadlock_map);
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Missing or invalid static deadlock detection result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
+
+    const int save_as_json = std::strcmp(argv[2], "true") == 0;
+    const std::string json_out_dir = argv[3];
+
+    const json result = analysis_deadlock_detection(static_result);
 
     if (save_as_json)
     {

@@ -1,29 +1,24 @@
-#include "parser_amdgcn_wavefront_divergence.hpp"
 #include "parser_metrics.hpp"
+#include "../utilities/helper.hpp"
 #include "../utilities/json.hpp"
 
 using json = nlohmann::json;
 
 json analysis_wavefront_divergence(
-    std::unordered_map<std::string, std::vector<brc>> brc_map,
-    std::unordered_map<std::string, location> tgt_map,
+    json static_result,
     std::unordered_map<std::string, mtc> mtc_map)
 {
-    json result;
+    auto& result = static_result["result"];
 
-    for (auto [krn_name, brc_vec] : brc_map)
+    for (auto& [krn_name, krn_result] : result.items())
     {
-        json krn_result = {
-            {"occurrences", json::array()}
-        };
-
         // TODO check if this is happening
-        if (krn_name == "")
+        if (krn_name.empty())
         {
-            break;
+            continue;
         }
 
-	std::cout << std::endl;
+        std::cout << std::endl;
         std::cout << "======================================================================"
                   << "================================" << std::endl;
         std::cout << "==== analysis    : wavefront divergence" << std::endl;
@@ -31,45 +26,36 @@ json analysis_wavefront_divergence(
         std::cout << "======================================================================"
                   << "================================" << std::endl;
 
-        for (auto brc_obj : brc_vec)
+        for (auto& occurrence : krn_result["occurrences"])
         {
-            json line_result;;
+            const std::string file_name = occurrence["file_name"].get<std::string>();
+            const int line_number = occurrence["line_number"].get<int>();
+            const std::string target_branch = occurrence["target_branch"].get<std::string>();
+            const std::string target_file_name = occurrence["target_branch_start_file_name"].get<std::string>();
+            const int target_line_number = occurrence["target_branch_start_line_number"].get<int>();
+            const std::string pc_offset = occurrence["pc_offset"].get<std::string>();
 
-            // branching instructions that have their target in the same file and line numbers are not considered
-            // conditional branching
-            if (brc_obj.loc.file_name != tgt_map[brc_obj.tgt].file_name ||
-                brc_obj.loc.line_num != tgt_map[brc_obj.tgt].line_num)
-            {
-		std::cout << std::endl;
-                std::cout << "==== WARNING" << std::endl;
-                std::cout << "==== conditional branching detected in file " << brc_obj.loc.file_name
-                          << "at line number " << brc_obj.loc.line_num << " of your code, "
-                          << "with target branch: " << brc_obj.tgt << std::endl;
-                std::cout << "     (target branch starts at in file " << tgt_map[brc_obj.tgt].file_name
-                          << " at line number " << tgt_map[brc_obj.tgt].line_num << ")" << std::endl;
-
-                line_result = {
-                    {"severity", "WARNING"},
-                    {"pc_offset", brc_obj.PC_offset},
-                   {"file_name", brc_obj.loc.file_name},
-                   {"line_number", brc_obj.loc.line_num},
-                   {"target_branch", brc_obj.tgt},
-                   {"target_branch_start_file_name", tgt_map[brc_obj.tgt].file_name},
-                   {"target_branch_start_line_number", tgt_map[brc_obj.tgt].line_num}
-                };
+            std::cout << std::endl;
+            std::cout << "==== WARNING" << std::endl;
+            std::cout << "==== conditional branching detected in file " << file_name
+                      << "at line number " << line_number << " of your code, "
+                      << "with target branch: " << target_branch << std::endl;
+            std::cout << "     (target branch starts at in file " << target_file_name
+                      << " at line number " << target_line_number << ")" << std::endl;
 
                 // TODO PC stall
-            }
-            
-            if (!line_result.is_null())
-            {
-                krn_result["occurrences"].push_back(line_result);
-            }
         }
+            
+        // Avoid implicitly inserting a default metric record when this kernel has no parsed metrics.
+        const auto metric_it = mtc_map.find(krn_name);
+        if (metric_it == mtc_map.end())
+        {
+            std::cerr << "ERROR: Missing metrics for kernel " << krn_name << std::endl;
+            continue;
+        }
+        const auto& mtc_obj = metric_it->second;
 
-        auto mtc_obj = mtc_map[krn_name];
-
-	std::cout << std::endl;
+        std::cout << std::endl;
         std::cout << "==== INFO" << std::endl;
         std::cout << "==== total number of branch operations issued" << std::endl;
         std::cout << "     " << mtc_obj.ID_10_1_6 << std::endl;
@@ -85,10 +71,26 @@ json analysis_wavefront_divergence(
 
 int main(int argc, char **argv)
 {
-    std::string assembly = argv[1];
-    auto tuple = parser_wavefront_divergence(assembly);
-    auto brc_map = std::get<0>(tuple);
-    auto tgt_map = std::get<1>(tuple);
+    /*! Full analysis mode:
+     *  exit 0 -> successful analysis
+     *  exit 1 -> invalid static result
+     *  exit 2 -> invalid arguments
+     */
+    if (argc != 5)
+    {
+        std::cerr << "Usage: " << argv[0] << " <assembly-file> <metrics-dir> <save-as-json> <json-output-dir>\\n";
+        return 2;
+    }
+
+    const std::string assembly = argv[1];
+    const auto static_result_file = static_result_path(assembly, "wavefront_divergence");
+    json static_result;
+    if (!load_static_result(static_result_file, static_result))
+    {
+        std::cerr << "ERROR: Missing or invalid static wavefront divergence result: "
+                  << static_result_file << std::endl;
+        return 1;
+    }
 
     std::string mtc_dir = argv[2];
     auto mtc_map = parser_metrics(mtc_dir, assembly);
@@ -96,7 +98,7 @@ int main(int argc, char **argv)
     int save_as_json = std::strcmp(argv[3], "true") == 0;
     std::string json_out_dir = argv[4];
 
-    json result = analysis_wavefront_divergence(brc_map, tgt_map, mtc_map);
+    json result = analysis_wavefront_divergence(static_result, mtc_map);
 
     if (save_as_json)
     {
